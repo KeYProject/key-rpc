@@ -3,7 +3,11 @@
  * SPDX-License-Identifier: GPL-2.0-only */
 package org.keyproject.key.api.data;
 
-/// An object allowed to be transfered via the JSON RPC
-///
-public interface KeYDataTransferObject {
+import de.uka.ilkd.key.pp.InitialPositionTable;
+
+/**
+ * @author Alexander Weigl
+ * @version 1 (13.10.23)
+ */
+public record NodeText(String text, InitialPositionTable table) {
 }
