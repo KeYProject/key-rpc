@@ -3,8 +3,8 @@
  */
 package org.example.app;
 
-class MessageUtils {
-    public static String getMessage() {
-        return "Hello      World!";
+public class JsonRpcServer {
+    public static void main(String[] args) {
+
     }
 }

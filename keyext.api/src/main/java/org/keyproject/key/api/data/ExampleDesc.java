@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: GPL-2.0-only */
 package org.keyproject.key.api.data;
 
-import de.uka.ilkd.key.gui.Example;
+import de.uka.ilkd.key.gui.ExampleChooser;
+import de.uka.ilkd.key.gui.ExampleChooser.Example;
 
 /**
  * This class represents a built-in example.
