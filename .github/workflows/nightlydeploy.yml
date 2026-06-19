@@ -3,11 +3,17 @@ name: Weekly Builds of KeY
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 5 * * 1' # every monday morning
+    - cron: '0 6 * * 1' # every monday morning
+
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
   id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
 
 env:
   JAVA_VERSION: 21
@@ -17,7 +23,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Set up JDK ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v5
         with:
@@ -31,7 +37,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       - name: Build with Gradle
-        run: ./gradlew --parallel assemble javadoc alldoc
+        run: ./gradlew --parallel assemble javadoc
 
       - name: Upload ShadowJar
         uses: actions/upload-artifact@v7
@@ -41,13 +47,13 @@ jobs:
           retention-days: 1
 
       - name: Package
-        run: tar cvf key-javadoc.tar.xz build/docs/javadoc
+        run: tar cvf key-jsonrpc-javadoc.tar.xz */build/docs/javadoc
 
       - name: Upload Javadoc
         uses: actions/upload-artifact@v7
         with:
           name: javadoc
-          path: "key-javadoc.tar.xz"
+          path: "key-jsonrpc-javadoc.tar.xz"
           retention-days: 1
 
       - name: Delete previous nightly release
@@ -61,12 +67,24 @@ jobs:
         id: create_release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        #--notes-start-tag KEY-2.12.3 \
         run: |
           gh release create --generate-notes --title "Nightly Release" \
-             --prerelease --notes-start-tag KEY-2.12.3 \
-             nightly key.ui/build/libs/key-*-exe.jar key-javadoc.tar.xz
+             --prerelease \ 
+             nightly */build/libs/key*-exe.jar key-jsonrpc-javadoc.tar.xz
 
-      - run: export GPG_TTY=$(tty)
+      - name: "Generate Documentation"
+        run: ./gradlew generateDocumentation
+
+      - name: "Upload GitHub Pages artifact"
+        uses: actions/upload-pages-artifact@v5
+        with:
+            path: dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
+
       - name: Upload to SNAPSHOT repository
         run: ./gradlew --parallel publishMavenJavaPublicationToKEYLABRepository
         env:
@@ -76,3 +94,6 @@ jobs:
 #          GPG_PRIVATE_KEY: ${{secrents.GPG_PRIVATE_KEY}}
 #          GPG_PASSPHRASE: ${{secrents.GPG_PASSPHRASE}}
 
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}

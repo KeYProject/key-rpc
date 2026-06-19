@@ -4,4 +4,4 @@ plugins {
 }
 
 rootProject.name = "key-rpc"
-include("app", "list", "utilities")
+include("keyext.api.app", "keyext.api", "keyext.api.doc")
