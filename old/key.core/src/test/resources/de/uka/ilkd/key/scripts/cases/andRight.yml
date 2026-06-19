@@ -1,9 +1,0 @@
-name: andRight
-key: |
-  \predicates { a; b; }
-  \problem { a & b }
-script: |
-  rule andRight;
-goals:
-  - ==> b
-  - ==> a

@@ -1,7 +1,0 @@
-contains:
-  - (assert (not (= (b2u (instanceof (i2u 42) sort_any)) (b2u true))))
-expected: VALID
-keySrc: |-
-  \problem {
-     instance<[any]>(42) = TRUE
-  }
