@@ -60,8 +60,10 @@ public class TestRpc {
 
     @AfterEach
     void teardown() {
-        serverListening.cancel(true);
-        clientListening.cancel(true);
+        if(serverListening != null)
+            serverListening.cancel(true);
+        if(clientListening != null)
+            clientListening.cancel(true);
     }
 
 

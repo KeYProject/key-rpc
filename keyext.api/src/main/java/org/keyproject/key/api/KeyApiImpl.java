@@ -410,7 +410,7 @@ public final class KeyApiImpl implements KeyApi {
     }
 
     @Override
-    public CompletableFuture<Boolean> dispose(EnvironmentId environmentId) {
+    public CompletableFuture<Boolean> envDispose(EnvironmentId environmentId) {
         data.dispose(environmentId);
         return CompletableFuture.completedFuture(
             true);

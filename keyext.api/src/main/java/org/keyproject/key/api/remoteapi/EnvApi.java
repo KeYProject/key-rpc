@@ -70,6 +70,6 @@ public interface EnvApi {
      * @param env a handle to the environment
      * @return true if the environment was dispose.
      */
-    @JsonRequest
-    CompletableFuture<Boolean> dispose(EnvironmentId env);
+    @JsonRequest(value = "dispose")
+    CompletableFuture<Boolean> envDispose(EnvironmentId env);
 }
