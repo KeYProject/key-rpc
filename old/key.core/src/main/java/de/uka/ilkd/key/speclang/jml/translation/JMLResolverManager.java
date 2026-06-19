@@ -1,0 +1,47 @@
+/* This file is part of KeY - https://key-project.org
+ * KeY is licensed under the GNU General Public License Version 2
+ * SPDX-License-Identifier: GPL-2.0-only */
+package de.uka.ilkd.key.speclang.jml.translation;
+
+import de.uka.ilkd.key.java.JavaInfo;
+import de.uka.ilkd.key.java.ast.abstraction.KeYJavaType;
+import de.uka.ilkd.key.java.ast.declaration.FieldDeclaration;
+import de.uka.ilkd.key.java.ast.declaration.MemberDeclaration;
+import de.uka.ilkd.key.java.ast.declaration.modifier.Modifiers;
+import de.uka.ilkd.key.java.ast.declaration.modifier.Protected;
+import de.uka.ilkd.key.java.ast.declaration.modifier.Public;
+import de.uka.ilkd.key.java.ast.declaration.modifier.VisibilityModifier;
+import de.uka.ilkd.key.logic.op.LocationVariable;
+import de.uka.ilkd.key.speclang.jml.JMLInfoExtractor;
+import de.uka.ilkd.key.speclang.translation.*;
+
+
+/**
+ * Resolver manager for JML.
+ */
+public final class JMLResolverManager extends SLResolverManager {
+
+    public JMLResolverManager(
+            JavaInfo javaInfo, KeYJavaType specInClass, LocationVariable selfVar,
+            SLExceptionFactory eManager) {
+        super(eManager, specInClass, selfVar, javaInfo.getServices().getTermBuilder());
+        addResolver(new JMLBuiltInPropertyResolver(javaInfo, this, specInClass));
+        addResolver(new SLAttributeResolver(javaInfo, this, specInClass));
+        addResolver(new SLMethodResolver(javaInfo, this, specInClass));
+        addResolver(new SLTypeResolver(javaInfo, this, specInClass));
+    }
+
+
+    @Override
+    public VisibilityModifier getSpecVisibility(MemberDeclaration md) {
+        if (JMLInfoExtractor.hasJMLModifier((FieldDeclaration) md,
+            Modifiers.JML_SPEC_PUBLIC.class)) {
+            return new Public();
+        } else if (JMLInfoExtractor.hasJMLModifier((FieldDeclaration) md,
+            Modifiers.JML_SPEC_PROTECTED.class)) {
+            return new Protected();
+        } else {
+            return null;
+        }
+    }
+}

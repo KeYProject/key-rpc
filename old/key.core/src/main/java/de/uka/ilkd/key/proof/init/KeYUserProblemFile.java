@@ -1,0 +1,278 @@
+/* This file is part of KeY - https://key-project.org
+ * KeY is licensed under the GNU General Public License Version 2
+ * SPDX-License-Identifier: GPL-2.0-only */
+package de.uka.ilkd.key.proof.init;
+
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.nio.file.Path;
+
+import de.uka.ilkd.key.java.ast.abstraction.KeYJavaType;
+import de.uka.ilkd.key.nparser.*;
+import de.uka.ilkd.key.proof.Proof;
+import de.uka.ilkd.key.proof.ProofAggregate;
+import de.uka.ilkd.key.proof.io.IProofFileParser;
+import de.uka.ilkd.key.proof.io.KeYFile;
+import de.uka.ilkd.key.proof.io.consistency.FileRepo;
+import de.uka.ilkd.key.settings.Configuration;
+import de.uka.ilkd.key.settings.ProofSettings;
+import de.uka.ilkd.key.speclang.PositionedString;
+import de.uka.ilkd.key.speclang.SLEnvInput;
+import de.uka.ilkd.key.util.ProgressMonitor;
+
+import org.key_project.prover.sequent.Sequent;
+import org.key_project.util.collection.DefaultImmutableSet;
+import org.key_project.util.collection.ImmutableSet;
+
+import org.antlr.v4.runtime.CharStream;
+import org.antlr.v4.runtime.Token;
+import org.jspecify.annotations.Nullable;
+
+
+/**
+ * Represents an input from a .key user problem file producing an environment as well as a proof
+ * obligation.
+ */
+public final class KeYUserProblemFile extends KeYFile implements ProofOblInput {
+    private Sequent problem = null;
+
+    // -------------------------------------------------------------------------
+    // constructors
+    // -------------------------------------------------------------------------
+
+    /**
+     * Creates a new representation of a KeYUserFile with the given name, a rule source representing
+     * the physical source of the input, and a graphical representation to call back in order to
+     * report the progress while reading.
+     *
+     * @param name the name of the file
+     * @param file the file to read from
+     * @param monitor the possibly <tt>null</tt> monitor for progress
+     * @param profile the KeY profile under which to load
+     */
+    public KeYUserProblemFile(String name, Path file, ProgressMonitor monitor, Profile profile) {
+        this(name, file, monitor, profile, false);
+    }
+
+    /**
+     * Instantiates a new user problem file.
+     *
+     * @param name the name of the file
+     * @param file the file to read from
+     * @param monitor the possibly <tt>null</tt> monitor for progress
+     * @param profile the KeY profile under which to load
+     * @param compressed {@code true} iff the file is compressed
+     */
+    public KeYUserProblemFile(String name, Path file, ProgressMonitor monitor, Profile profile,
+            boolean compressed) {
+        super(name, file, monitor, profile, compressed);
+    }
+
+    /**
+     * Instantiates a new user problem file.
+     *
+     * @param name the name of the file
+     * @param file the file tp read from
+     * @param fileRepo the fileRepo which will store the file
+     * @param monitor the possibly <tt>null</tt> monitor for progress
+     * @param profile the KeY profile under which to load
+     * @param compressed {@code true} iff the file is compressed
+     */
+    public KeYUserProblemFile(String name, Path file, FileRepo fileRepo, ProgressMonitor monitor,
+            Profile profile, boolean compressed) {
+        super(name, file, fileRepo, monitor, profile, compressed);
+    }
+
+    // -------------------------------------------------------------------------
+    // public interface
+    // -------------------------------------------------------------------------
+
+    @Override
+    public ImmutableSet<PositionedString> read() throws ProofInputException {
+        if (initConfig == null) {
+            throw new IllegalStateException("InitConfig not set.");
+        }
+        ProofSettings settings = getPreferences();
+        initConfig.setSettings(settings);
+
+        ChoiceInformation ci = getParseContext().getChoices();
+        settings.getChoiceSettings().updateWith(ci.getActivatedChoices());
+        initConfig.setActivatedChoices(settings.getChoiceSettings().getDefaultChoicesAsSet());
+
+        ImmutableSet<PositionedString> warnings = DefaultImmutableSet.nil();
+
+        // read key file itself (except contracts)
+        warnings = warnings.union(super.readExtendedSignature());
+
+        // read in-code specifications
+        SLEnvInput slEnvInput = new SLEnvInput(readJavaPath(), readClassPath(), readBootClassPath(),
+            getProfile(), null);
+        slEnvInput.setInitConfig(initConfig);
+        warnings = warnings.union(slEnvInput.read());
+
+        // read contracts
+        warnings = warnings.union(readContracts());
+
+        // read taclets
+        warnings = warnings.add(getPositionedStrings(readRules()));
+
+        return warnings;
+    }
+
+    @Override
+    public void readProblem() throws ProofInputException {
+        if (initConfig == null) {
+            throw new IllegalStateException("KeYUserProblemFile: InitConfig not set.");
+        }
+
+        try {
+            problem = getProblemFinder().getProblem();
+            if (problem == null) {
+                boolean chooseDLContract = chooseContract() != null;
+                boolean proofObligation = getProofObligation() != null;
+                if (!chooseDLContract && !proofObligation) {
+                    throw new ProofInputException(
+                        "No \\problem or \\chooseContract or \\proofObligation in the input file!");
+                }
+            }
+        } catch (Exception e) {
+            throw new ProofInputException(e);
+        }
+    }
+
+    @Override
+    public String chooseContract() {
+        return getProblemFinder().getChooseContract();
+    }
+
+    @Override
+    public Configuration getProofObligation() {
+        return getProblemFinder().getProofObligation();
+    }
+
+    @Override
+    public ProofAggregate getPO() {
+        assert problem != null;
+        String name = name();
+        ProofSettings settings = getPreferences();
+        initConfig.setSettings(settings);
+        return ProofAggregate.createProofAggregate(
+            new Proof(name, problem, getParseContext().getProblemHeader(), initConfig,
+                file.file()),
+            name);
+    }
+
+
+    @Override
+    public boolean implies(ProofOblInput po) {
+        return equals(po);
+    }
+
+
+    /**
+     * True iff a {@link ProofScriptEntry} is present
+     *
+     * @see #readProofScript()
+     */
+    public boolean hasProofScript() {
+        return readProofScript() != null;
+    }
+
+    /**
+     * Returns the {@link ProofScriptEntry} in this resource
+     *
+     * @return {@link ProofScriptEntry} if present otherwise null
+     */
+    public KeyAst.@Nullable ProofScript readProofScript() {
+        return getParseContext().findProofScript();
+    }
+
+    /**
+     * Reads a saved proof of a .key file.
+     */
+    public void readProof(IProofFileParser prl) throws IOException {
+        KeyAst.File ctx = getParseContext();
+        Token token = ctx.findProof();
+        if (token != null) {
+            CharStream stream = file.getCharStream();
+            // also pass the file to be able to produce exceptions with locations
+            try {
+                ProofReplayer.run(token, stream, prl, file.url().toURI());
+            } catch (URISyntaxException e) {
+                throw new RuntimeException(e);
+            }
+        }
+    }
+
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || o.getClass() != this.getClass()) {
+            return false;
+        }
+        final KeYUserProblemFile kf = (KeYUserProblemFile) o;
+        return kf.file.file().toAbsolutePath().equals(file.file().toAbsolutePath());
+    }
+
+
+    @Override
+    public int hashCode() {
+        return file.file().toAbsolutePath().hashCode();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Profile getProfile() {
+        try {
+            Profile profile = readProfileFromFile();
+            if (profile != null) {
+                return profile;
+            } else {
+                return getDefaultProfile();
+            }
+        } catch (Exception e) {
+            return getDefaultProfile();
+        }
+    }
+
+    /**
+     * Tries to read the {@link Profile} from the file to load.
+     *
+     * @return The {@link Profile} defined by the file to load or {@code null} if no {@link Profile}
+     *         is defined by the file.
+     */
+    private Profile readProfileFromFile() {
+        ProblemInformation pi = getProblemInformation();
+        String profileName = pi.getProfile();
+        if (profileName != null && !profileName.isEmpty()) {
+            return ProofInitServiceUtil.getDefaultProfile(profileName);
+        } else {
+            return null;
+        }
+    }
+
+
+    /// returns the user-local definition given in the file.
+    public KeyAst.@Nullable Declarations getProblemHeader() {
+        return getParseContext().getProblemHeader();
+    }
+
+    /**
+     * Returns the default {@link Profile} which was defined by a constructor.
+     *
+     * @return The default {@link Profile}.
+     */
+    private Profile getDefaultProfile() {
+        return super.getProfile();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public KeYJavaType getContainerType() {
+        return null;
+    }
+}
