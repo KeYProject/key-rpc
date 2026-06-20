@@ -1,6 +1,7 @@
 plugins {
     java
     id("com.diffplug.spotless")
+    id("org.jetbrains.kotlin.jvm")
 }
 
 repositories {
