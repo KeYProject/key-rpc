@@ -124,7 +124,7 @@ public interface ProofApi {
      * @return
      */
     @JsonRequest
-    default CompletableFuture<Void> statistics(ProofId proof) {
+    default CompletableFuture<Object> statistics(ProofId proof) {
         return CompletableFuture.completedFuture(null);
     }
 
