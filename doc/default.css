@@ -57,10 +57,16 @@ body {
     }
 
     ul {
+        padding-left: 2ex;
+    }
 
+    ul.segments > li abbr {
+        font-size: 120%;
+        font-weight: bold;
     }
 
     li {
+        list-style: disc;
     }
 }
 
