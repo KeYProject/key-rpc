@@ -73,11 +73,11 @@ jobs:
           gh release create --generate-notes --title "Nightly Release" \
              --prerelease nightly */build/libs/*-all.jar */build/distributions/keyext.api.app.zip
 
-      - name: Upload to SNAPSHOT repository
-        run: ./gradlew --parallel publishMavenJavaPublicationToKEYLABRepository
-        env:
-          BUILD_NUMBER: "SNAPSHOT"
-          GITLAB_DEPLOY_TOKEN: ${{ secrets.GITLAB_DEPLOY_TOKEN }}
+#      - name: Upload to SNAPSHOT repository
+#        run: ./gradlew --parallel publishMavenJavaPublicationToKEYLABRepository
+#        env:
+#          BUILD_NUMBER: "SNAPSHOT"
+#          GITLAB_DEPLOY_TOKEN: ${{ secrets.GITLAB_DEPLOY_TOKEN }}
 #          SIGNING_KEY_ID: ${{secrents.SIGNING_KEY_ID}}
 #          GPG_PRIVATE_KEY: ${{secrents.GPG_PRIVATE_KEY}}
 #          GPG_PASSPHRASE: ${{secrents.GPG_PASSPHRASE}}
