@@ -9,3 +9,6 @@ description "Verification server interface via JSON-RPC"
 application {
     mainClass.set("org.keyproject.key.api.StartServer")
 }
+dependencies {
+    api(project(":keyext.api"))
+}

@@ -70,7 +70,7 @@ jobs:
         run: |
           gh release create --generate-notes --title "Nightly Release" \
              --prerelease \ 
-             nightly */build/libs/key*-exe.jar key-jsonrpc-javadoc.tar.xz
+             nightly */build/libs/*-all.jar */build/distributions/keyext.api.app.zip
 
       - name: Upload to SNAPSHOT repository
         run: ./gradlew --parallel publishMavenJavaPublicationToKEYLABRepository
