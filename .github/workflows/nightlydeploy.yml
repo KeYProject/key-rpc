@@ -69,8 +69,7 @@ jobs:
         #--notes-start-tag KEY-2.12.3 \
         run: |
           gh release create --generate-notes --title "Nightly Release" \
-             --prerelease \ 
-             nightly */build/libs/*-all.jar */build/distributions/keyext.api.app.zip
+             --prerelease nightly */build/libs/*-all.jar */build/distributions/keyext.api.app.zip
 
       - name: Upload to SNAPSHOT repository
         run: ./gradlew --parallel publishMavenJavaPublicationToKEYLABRepository
