@@ -39,7 +39,7 @@ data class Link(
 
 private const val REFERENCE_HTML = "reference.html"
 
-class ReferencePageResource() : PageResource {
+class ReferencePageResource : PageResource {
     override fun write(target: Path, metamodel: Metamodel.KeyApi, pages: List<PageResource>) =
         target.writeText(ReferencePage(metamodel, pages).render())
 
@@ -90,7 +90,6 @@ data class MdPageResource(val path: Path) : PageResource {
         target.writeText(MarkdownPage(html, metamodel, pages).render())
     }
 }
-
 
 abstract class BasePage(
     metamodel: Metamodel.KeyApi,
@@ -166,7 +165,7 @@ abstract class BasePage(
         ul("segments") {
             endpointsBySegment.forEach { (segname, seq) ->
                 li {
-                    a(href = "${REFERENCE_HTML}#${segname}") { +segname }
+                    a(href = "${REFERENCE_HTML}#$segname") { +segname }
                     ul {
                         seq.forEach { ep ->
                             li {
@@ -196,11 +195,9 @@ abstract class BasePage(
                                     Date: $date}"""
         }
     }
-
 }
 
-class MarkdownPage(val html: String, metamodel: Metamodel.KeyApi, pages: List<PageResource>) :
-    BasePage(metamodel, pages) {
+class MarkdownPage(val html: String, metamodel: Metamodel.KeyApi, pages: List<PageResource>) : BasePage(metamodel, pages) {
     override fun DIV.content() {
         unsafe { +html }
         script {

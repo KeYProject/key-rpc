@@ -69,7 +69,7 @@ class Main : CliktCommand(name = "gendoc") {
         }
     }
 
-    /// Poor man's static site generator
+    // / Poor man's static site generator
     private fun generatePages(metadata: KeyApi, outputWeb: Path) {
         val base = Paths.get("../doc")
         val resources = base.walk().toList()
@@ -83,8 +83,10 @@ class Main : CliktCommand(name = "gendoc") {
         val bookLink = Link("https://key-project.org/thebook2", "KeY Book", 10001)
 
         // generate html pages
-        val pages = (listOf(ReferencePageResource(), dokkaLink, keyLink, bookLink) +
-            resources.filter { it.extension == "md" }.map { MdPageResource(it) })
+        val pages = (
+            listOf(ReferencePageResource(), dokkaLink, keyLink, bookLink) +
+            resources.filter { it.extension == "md" }.map { MdPageResource(it) }
+        )
                 .sortedBy { it.order }
 
         pages.forEach {
