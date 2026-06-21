@@ -54,7 +54,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: shadowjars
-          path: "*/build/libs/*-exe.jar"
+          path: "*/build/libs/*-all.jar"
           retention-days: 1
 
       - name: Delete previous nightly release
