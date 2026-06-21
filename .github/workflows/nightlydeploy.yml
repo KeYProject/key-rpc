@@ -36,13 +36,15 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       - name: Generated Stubs, Documentation and Assemble
-        run: ./gradlew --parallel :keyext.api.doc:run :dokkaGeneratePublicationHtml assemble
+        run: ./gradlew --parallel :keyext.api.doc:run
+      - run: ./gradlew --parallel :dokkaGeneratePublicationHtml assemble
 
-      - run: mv out/* build/dokka/html/
+      - run: mv -v build/dokka/html/ out/dokka
+
       - name: "Upload GitHub Pages artifact"
         uses: actions/upload-pages-artifact@v5
         with:
-          path: build/dokka/html
+          path: out/
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
