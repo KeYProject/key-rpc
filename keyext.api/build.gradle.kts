@@ -23,6 +23,8 @@ dependencies {
     implementation(libs.guava)
     annotationProcessor(libs.therapi.runtime.javadoc.scribe)
     api(libs.therapi.runtime.javadoc)
+
+    testImplementation("org.mockito:mockito-core:5.18.0")
 }
 
 tasks.named<JavaCompile>("compileJava") {

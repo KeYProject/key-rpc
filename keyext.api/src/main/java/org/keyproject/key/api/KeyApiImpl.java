@@ -67,7 +67,10 @@ public final class KeyApiImpl implements KeyApi {
 
     private Function<Void, Boolean> exitHandler;
 
-    private ClientApi clientApi;
+    /// Never {@code null}: starts as a no-op sink so that task/loading callbacks
+    /// fired before a client has connected (or after it disconnects) cannot hit
+    /// a null reference. {@link #setClientApi} swaps in the real remote proxy.
+    private ClientApi clientApi = noopClientApi();
     private final ProverTaskListener clientListener = new ProverTaskListener() {
         @Override
         public void taskStarted(org.key_project.prover.engine.TaskStartedInfo info) {
@@ -516,6 +519,19 @@ public final class KeyApiImpl implements KeyApi {
         clientApi = remoteProxy;
     }
 
+    /// A {@link ClientApi} whose calls do nothing: notifications are dropped and
+    /// requests resolve to {@code null}. Used as the default before a client is
+    /// attached, see {@link #clientApi}.
+    private static ClientApi noopClientApi() {
+        return (ClientApi) java.lang.reflect.Proxy.newProxyInstance(
+            ClientApi.class.getClassLoader(),
+            new Class<?>[] { ClientApi.class },
+            (proxy, method, args) -> CompletableFuture.class
+                    .isAssignableFrom(method.getReturnType())
+                            ? CompletableFuture.completedFuture(null)
+                            : null);
+    }
+
     private final DefaultUserInterfaceControl control = new MyDefaultUserInterfaceControl();
 
     @Override
@@ -552,25 +568,103 @@ public final class KeyApiImpl implements KeyApi {
 
     @Override
     public CompletableFuture<ProofId> loadProblem(ProblemDefinition problem) {
-        return CompletableFutures.computeAsync((c) -> {
-            Proof proof = null;
-            KeYEnvironment<?> env = null;
-            /*
-             * var loader = control.load(JavaProfile.getDefaultProfile(),
-             * ex.getObligationFile(), null, null, null, null, true, null);
-             * InitConfig initConfig = loader.getInitConfig();
-             *
-             * env = new KeYEnvironment<>(control, initConfig, loader.getProof(),
-             * loader.getProofScript(), loader.getResult());
-             * var envId = new EnvironmentId(env.toString());
-             * data.register(envId, env);
-             * proof = Objects.requireNonNull(env.getLoadedProof());
-             * var proofId = new ProofId(envId, proof.name().toString());
-             * return data.register(proofId, proof);
-             */
-            return null;
-        });
+        // Render the problem definition into a KeY input file and load it through
+        // the regular .key loading path.
+        return loadKey(buildKeyInput(problem));
+    }
 
+    /// Builds a {@code .key} input document from a {@link ProblemDefinition}: the
+    /// declared sorts/functions/predicates followed by a {@code \problem} holding
+    /// the sequent {@code antecTerms ==> succTerms} encoded as a single formula.
+    static String buildKeyInput(ProblemDefinition problem) {
+        var sb = new StringBuilder();
+
+        var sorts = problem.sorts();
+        if (sorts != null && !sorts.isEmpty()) {
+            sb.append("\\sorts {\n");
+            for (var sort : sorts) {
+                sb.append("    ");
+                if (sort.anAbstract()) {
+                    sb.append("\\abstract ");
+                }
+                sb.append(sort.string());
+                var ext = sort.extendsSorts();
+                if (ext != null && !ext.isEmpty()) {
+                    sb.append(" \\extends ").append(joinSortNames(ext));
+                }
+                sb.append(";\n");
+            }
+            sb.append("}\n\n");
+        }
+
+        var functions = problem.functions();
+        if (functions != null && !functions.isEmpty()) {
+            sb.append("\\functions {\n");
+            for (var fn : functions) {
+                sb.append("    ").append(returnSortName(fn)).append(" ").append(fn.name());
+                appendArgSorts(sb, fn.argSorts());
+                sb.append(";\n");
+            }
+            sb.append("}\n\n");
+        }
+
+        var predicates = problem.predicates();
+        if (predicates != null && !predicates.isEmpty()) {
+            sb.append("\\predicates {\n");
+            for (var pred : predicates) {
+                sb.append("    ").append(pred.name());
+                appendArgSorts(sb, pred.argSorts());
+                sb.append(";\n");
+            }
+            sb.append("}\n\n");
+        }
+
+        sb.append("\\problem {\n    ")
+                .append(buildSequentFormula(problem.antecTerms(), problem.succTerms()))
+                .append("\n}\n");
+        return sb.toString();
+    }
+
+    /// Encodes the sequent {@code antec ==> succ} as a single formula
+    /// {@code (a1 & ... & an) -> (s1 | ... | sm)}. An empty succedent becomes
+    /// {@code false}; an empty antecedent drops the implication.
+    private static String buildSequentFormula(List<String> antecTerms, List<String> succTerms) {
+        String ante = joinFormulas(antecTerms, " & ");
+        String succ = joinFormulas(succTerms, " | ");
+        if (ante == null && succ == null) {
+            throw new IllegalArgumentException(
+                "ProblemDefinition must contain at least one antecedent or succedent term");
+        }
+        if (ante == null) {
+            return succ;
+        }
+        if (succ == null) {
+            return ante + " -> false";
+        }
+        return ante + " -> " + succ;
+    }
+
+    /// Joins terms with {@code op}, parenthesising each, or {@code null} if empty.
+    private static String joinFormulas(List<String> terms, String op) {
+        if (terms == null || terms.isEmpty()) {
+            return null;
+        }
+        return String.join(op, terms.stream().map(t -> "(" + t + ")").toList());
+    }
+
+    private static String joinSortNames(List<SortDesc> sorts) {
+        return String.join(", ", sorts.stream().map(SortDesc::string).toList());
+    }
+
+    private static void appendArgSorts(StringBuilder sb, List<SortDesc> argSorts) {
+        if (argSorts == null || argSorts.isEmpty()) {
+            return;
+        }
+        sb.append("(").append(joinSortNames(argSorts)).append(")");
+    }
+
+    private static String returnSortName(FunctionDesc fn) {
+        return fn.retSort() != null ? fn.retSort().string() : fn.sort();
     }
 
     @Override

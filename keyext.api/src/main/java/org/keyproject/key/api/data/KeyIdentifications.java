@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: GPL-2.0-only */
 package org.keyproject.key.api.data;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
 import de.uka.ilkd.key.control.KeYEnvironment;
 import de.uka.ilkd.key.proof.Node;
@@ -16,7 +16,12 @@ import de.uka.ilkd.key.proof.Proof;
  * @version 1 (29.10.23)
  */
 public class KeyIdentifications {
-    private final Map<EnvironmentId, KeyEnvironmentContainer> mapEnv = new HashMap<>(16);
+    // Concurrent: the JSON-RPC launcher dispatches requests on multiple threads,
+    // so register/find/dispose can run in parallel. A plain HashMap would risk
+    // lost updates and ConcurrentModificationException (e.g. dispose(env) iterates
+    // mapProof while dispose(proof) removes from it).
+    private final Map<EnvironmentId, KeyEnvironmentContainer> mapEnv =
+        new ConcurrentHashMap<>(16);
 
     public KeyEnvironmentContainer getContainer(EnvironmentId environmentId) {
         return Objects.requireNonNull(mapEnv.get(environmentId),
@@ -155,7 +160,7 @@ public class KeyIdentifications {
             Map<ProofId, ProofContainer> mapProof) {
 
         public KeyEnvironmentContainer(KeYEnvironment<?> env) {
-            this(env, new HashMap<>(1));
+            this(env, new ConcurrentHashMap<>(1));
         }
 
         void dispose() {
@@ -172,7 +177,8 @@ public class KeyIdentifications {
             // where the position table is null) yields equal values.
             Map<NodeTextId, NodeText> mapGoalText) {
         public ProofContainer(Proof proof) {
-            this(proof, new HashMap<>(16), new HashMap<>(16), new HashMap<>(16));
+            this(proof, new ConcurrentHashMap<>(16), new ConcurrentHashMap<>(16),
+                new ConcurrentHashMap<>(16));
         }
 
         void dispose() {

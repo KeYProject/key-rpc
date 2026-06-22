@@ -140,10 +140,14 @@ public final class RPCLayer {
                     if (message == null)
                         break;
                     final var jsonObject = JsonParser.parseString(message).getAsJsonObject();
-                    incomingMessageQueue.add(jsonObject);
+                    // put() blocks when the queue is full (back-pressure); add()
+                    // would throw IllegalStateException and kill this thread.
+                    incomingMessageQueue.put(jsonObject);
                 }
             } catch (IOException e) {
                 throw new RuntimeException(e);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
         }
 
@@ -164,8 +168,15 @@ public final class RPCLayer {
                 buf = new char[len];
             }
 
-            int count = incoming.read(buf, 0, len);
-            assert count == len;
+            // read() may return fewer chars than requested (especially on a
+            // socket), so loop until the whole message has arrived or EOF.
+            int count = 0;
+            while (count < len) {
+                int n = incoming.read(buf, count, len - count);
+                if (n == -1) // EOF mid-message
+                    break;
+                count += n;
+            }
             consumeCRNL();
             return new String(buf, 0, count).trim();
         }
