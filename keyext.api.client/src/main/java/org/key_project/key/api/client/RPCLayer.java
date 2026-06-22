@@ -101,7 +101,13 @@ public final class RPCLayer {
                 if (obj.get("id") != null) {
                     var id = obj.get("id").getAsString();
                     var syncObj = waiting.get(id);
-                    syncObj.put(obj);
+                    if (syncObj != null) {
+                        syncObj.put(obj);
+                    } else {
+                        // Response for an unknown/already-completed id: ignore it
+                        // instead of NPE-ing (which would kill this thread).
+                        System.err.println("Ignoring response for unknown id " + id);
+                    }
                 } else {
                     // TODO handle notification
                     System.out.println("Notification received");
@@ -115,6 +121,9 @@ public final class RPCLayer {
     public void dispose() {
         if (threadListener != null) {
             threadListener.interrupt();
+        }
+        if (threadMessageHandling != null) {
+            threadMessageHandling.interrupt();
         }
     }
 
