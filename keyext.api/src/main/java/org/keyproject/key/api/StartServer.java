@@ -227,6 +227,9 @@ public class StartServer implements Runnable {
                 } catch (IOException e) {
                     LOGGER.warn("Connection error; awaiting next connection", e);
                 }
+                // Detach the gone client so notifications don't hit a dead proxy
+                // before the next client connects.
+                keyApi.disconnectClient();
                 LOGGER.info("Client disconnected; awaiting next connection");
             }
         }
