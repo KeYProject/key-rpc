@@ -6,7 +6,6 @@ from typing import Dict
 
 from keyapi import KEY_DATA_CLASSES, KEY_DATA_CLASSES_REV
 
-JSON_RPC_REQ_FORMAT = "Content-Length: {json_string_len}\r\n\r\n{json_string}"
 LEN_HEADER = "Content-Length: "
 TYPE_HEADER = "Content-Type: "
 
@@ -47,14 +46,21 @@ class JsonRpcEndpoint(object):
         self.write_lock = threading.Lock()
 
     @staticmethod
-    def __add_header(json_string):
+    def __add_header(content_bytes):
         '''
-        Adds a header for the given json string
+        Prepends the JSON-RPC framing header to an already UTF-8 encoded body.
 
-        :param str json_string: The string
-        :return: the string with the header
+        The ``Content-Length`` value is the number of *bytes* of the body (per
+        the LSP base protocol), not the number of characters. Counting
+        characters truncates every message that contains a non-ASCII glyph
+        (common in KeY terms), so the header must be computed from the encoded
+        bytes.
+
+        :param bytes content_bytes: the UTF-8 encoded JSON body
+        :return: the framed message as bytes
         '''
-        return JSON_RPC_REQ_FORMAT.format(json_string_len=len(json_string), json_string=json_string)
+        header = "%s%d\r\n\r\n" % (LEN_HEADER, len(content_bytes))
+        return header.encode("ascii") + content_bytes
 
     def send_request(self, message):
         '''
@@ -62,19 +68,39 @@ class JsonRpcEndpoint(object):
 
         :param dict message: The message to send.
         '''
-        json_string = json.dumps(message , cls=MyEncoder)
-        jsonrpc_req = self.__add_header(json_string)
+        json_string = json.dumps(message, cls=MyEncoder)
+        content_bytes = json_string.encode("utf-8")
+        jsonrpc_req = self.__add_header(content_bytes)
         with self.write_lock:
             self.stdout.write(jsonrpc_req)
             self.stdout.flush()
 
+    def _read_exactly(self, count):
+        '''
+        Reads exactly ``count`` bytes, looping until they have all arrived.
+
+        ``read(n)`` on a socket stream may legally return fewer than ``n`` bytes,
+        so a single ``read`` is not enough to consume a framed message.
+
+        :return: the bytes, or ``None`` if EOF is reached first
+        '''
+        chunks = []
+        remaining = count
+        while remaining > 0:
+            chunk = self.stdin.read(remaining)
+            if not chunk:
+                return None
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        return b"".join(chunks)
+
     def recv_response(self) -> object:
         '''
-        Recives a message.
+        Receives a message. Expects the input stream to be binary.
 
-        :return: a message
+        :return: a message, or ``None`` when the stream has reached EOF
         '''
-        with (self.read_lock):
+        with self.read_lock:
             message_size = None
             while True:
                 # read header
@@ -82,11 +108,10 @@ class JsonRpcEndpoint(object):
                 if not line:
                     # server quit
                     return None
-                # line = line.decode("utf-8")
-                if not line.endswith("\r\n"):
+                if not line.endswith(b"\r\n"):
                     raise ResponseError(ErrorCodes.ParseError, "Bad header: missing newline")
-                # remove the "\r\n"
-                line = line[:-2]
+                # remove the "\r\n" and decode the (ASCII) header line
+                line = line[:-2].decode("ascii")
                 if line == "":
                     # done with the headers
                     break
@@ -104,8 +129,13 @@ class JsonRpcEndpoint(object):
             if not message_size:
                 raise ResponseError(ErrorCodes.ParseError, "Bad header: missing size")
 
-            jsonrpc_res = self.stdin.read(message_size)  # .decode("utf-8")
-            return json.loads(jsonrpc_res, object_hook=object_decoder)
+            # Content-Length counts bytes, so read bytes (not characters) and
+            # only then decode as UTF-8.
+            body = self._read_exactly(message_size)
+            if body is None:
+                # EOF in the middle of a message
+                return None
+            return json.loads(body.decode("utf-8"), object_hook=object_decoder)
 
 
 def object_decoder(obj):
@@ -130,6 +160,7 @@ class LspEndpoint(threading.Thread):
         self.event_dict = {}
         self.response_dict = {}
         self.next_id = 0
+        self._id_lock = threading.Lock()
         self._timeout = timeout
         self.shutdown_flag = False
 
@@ -196,8 +227,12 @@ class LspEndpoint(threading.Thread):
         self.json_rpc_endpoint.send_request(message_dict)
 
     def call_method(self, method_name, args):
-        current_id = self.next_id
-        self.next_id += 1
+        # Allocate the request id atomically: concurrent callers must never
+        # share an id, otherwise their entries in event_dict/response_dict
+        # collide and a response gets delivered to the wrong caller.
+        with self._id_lock:
+            current_id = self.next_id
+            self.next_id += 1
         cond = threading.Condition()
         self.event_dict[current_id] = cond
 
