@@ -7,8 +7,10 @@ class NetKeY(object):
     def __init__(self, target):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.connect(target)
-        self.inStream = self.socket.makefile("r", newline="\r\n")
-        self.outStream = self.socket.makefile("w", newline="\r\n")
+        # Binary streams: the JSON-RPC framing counts bytes, not characters, so
+        # the transport must not do any text decoding or newline translation.
+        self.inStream = self.socket.makefile("rb")
+        self.outStream = self.socket.makefile("wb")
 
         self.rpc_endpoint = JsonRpcEndpoint(self.inStream, self.outStream)
         self.endpoint = LspEndpoint(self.rpc_endpoint)
