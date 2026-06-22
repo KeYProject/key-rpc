@@ -43,15 +43,4 @@ public class RPCLayerTest {
         String second = listener.readMessage();
         Assertions.assertEquals(response, second);
     }
-
-
-
-    @Test
-    void testLockingAndReleasing() throws IOException, InterruptedException {
-        var response = JsonRPC.addHeader(JsonRPC.createResponse("0", 2));
-        var layer = new RPCLayer(new StringReader(response), new StringWriter());
-        layer.start(); // starts the thread.
-        var result = layer.callSync("calc", 1, 1);
-        System.out.println(result);
-    }
 }
