@@ -176,7 +176,13 @@ public class KeyIdentifications {
         }
 
         void dispose() {
+            // Release all per-proof caches (not just mapNode). The container is
+            // normally dropped from mapProof and garbage-collected on dispose,
+            // so this is mainly an eager/defensive release of the printed-sequent
+            // cache (mapGoalText).
             mapNode.clear();
+            mapTreeNode.clear();
+            mapGoalText.clear();
         }
     }
 }

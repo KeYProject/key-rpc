@@ -151,6 +151,8 @@ public class StartServer implements Runnable {
             }
 
             if (websocket) {
+                // Without this, in/out stay null and the launcher gets no streams.
+                establishStreams();
                 var launcherBuilder = new WebSocketLauncherBuilder<ClientApi>()
                         .setOutput(out)
                         .setInput(in)

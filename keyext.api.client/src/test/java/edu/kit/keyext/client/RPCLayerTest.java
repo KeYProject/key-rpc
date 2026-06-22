@@ -47,7 +47,7 @@ public class RPCLayerTest {
         String second = listener.readMessage();
         Assertions.assertEquals(response, second);
     }
-
+  
     /**
      * Regression test: a response for an id nobody is waiting on must be ignored,
      * not NPE the message-handler thread. With the old code the handler died on
