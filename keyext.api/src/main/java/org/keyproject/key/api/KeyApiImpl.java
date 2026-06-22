@@ -10,11 +10,14 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Stack;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -90,7 +93,21 @@ public final class KeyApiImpl implements KeyApi {
     };
     private final AtomicInteger uniqueCounter = new AtomicInteger();
 
+    // Available macros and script commands are discovered via the service loader
+    // (a classpath scan). They don't change at runtime, so scan once here instead
+    // of on every getAvailableMacros/getAvailableScriptCommands/macro request.
+    private final List<ProofMacro> availableMacros = loadAll(ProofMacro.class);
+    private final List<ProofScriptCommand> availableScriptCommands =
+        loadAll(ProofScriptCommand.class);
+    private final Map<String, ProofMacro> macrosByName = availableMacros.stream()
+            .collect(Collectors.toUnmodifiableMap(ProofMacro::getName, m -> m, (a, b) -> a));
+
     public KeyApiImpl() {
+    }
+
+    private static <T> List<T> loadAll(Class<T> service) {
+        return StreamSupport.stream(
+            ClassLoaderUtil.loadServices(service).spliterator(), false).toList();
     }
 
     @Override
@@ -128,18 +145,13 @@ public final class KeyApiImpl implements KeyApi {
     @Override
     public CompletableFuture<List<ProofMacroDesc>> getAvailableMacros() {
         return CompletableFuture.completedFuture(
-            StreamSupport
-                    .stream(ClassLoaderUtil.loadServices(ProofMacro.class).spliterator(), false)
-                    .map(ProofMacroDesc::from).toList());
+            availableMacros.stream().map(ProofMacroDesc::from).toList());
     }
 
     @Override
     public CompletableFuture<List<ProofScriptCommandDesc>> getAvailableScriptCommands() {
         return CompletableFuture.completedFuture(
-            StreamSupport
-                    .stream(ClassLoaderUtil.loadServices(ProofScriptCommand.class).spliterator(),
-                        false)
-                    .map(ProofScriptCommandDesc::from).toList());
+            availableScriptCommands.stream().map(ProofScriptCommandDesc::from).toList());
     }
 
     @Override
@@ -166,9 +178,10 @@ public final class KeyApiImpl implements KeyApi {
         return CompletableFuture.supplyAsync(() -> {
             var proof = data.find(proofId);
             var env = data.find(proofId.env());
-            var macro = StreamSupport
-                    .stream(ClassLoaderUtil.loadServices(ProofMacro.class).spliterator(), false)
-                    .filter(it -> it.getName().equals(macroName)).findFirst().orElseThrow();
+            var macro = macrosByName.get(macroName);
+            if (macro == null) {
+                throw new NoSuchElementException("No macro named '" + macroName + "'");
+            }
 
             try {
                 var info =
