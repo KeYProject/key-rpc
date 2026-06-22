@@ -578,8 +578,9 @@ public final class KeyApiImpl implements KeyApi {
         return CompletableFutures.computeAsync((c) -> {
             Proof proof = null;
             KeYEnvironment<?> env = null;
+            File tempFile = null;
             try {
-                final var tempFile = File.createTempFile("json-rpc-", ".key");
+                tempFile = File.createTempFile("json-rpc-", ".key");
                 Files.writeString(tempFile.toPath(), content);
                 var loader = control.load(JavaProfile.getDefaultProfile(),
                     tempFile.toPath(), null, null, null, null, true, null);
@@ -595,6 +596,17 @@ public final class KeyApiImpl implements KeyApi {
                 if (env != null)
                     env.dispose();
                 throw new RuntimeException(e);
+            } finally {
+                // The loader reads the problem from disk during loading, so the
+                // temp file is no longer needed afterwards. Delete it to avoid
+                // accumulating one file per loadKey/loadTerm/loadProblem call.
+                if (tempFile != null) {
+                    try {
+                        Files.deleteIfExists(tempFile.toPath());
+                    } catch (IOException ignored) {
+                        // best effort
+                    }
+                }
             }
         });
     }
