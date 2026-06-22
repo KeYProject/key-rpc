@@ -59,10 +59,14 @@ import org.keyproject.key.api.data.*;
 import org.keyproject.key.api.data.KeyIdentifications.*;
 import org.keyproject.key.api.remoteapi.KeyApi;
 import org.keyproject.key.api.remoteclient.ClientApi;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import static org.keyproject.key.api.data.ProofNodeDescription.collectPathInformation;
 
 public final class KeyApiImpl implements KeyApi {
+    private static final Logger LOGGER = LoggerFactory.getLogger(KeyApiImpl.class);
+
     private final KeyIdentifications data = new KeyIdentifications();
 
     private Function<Void, Boolean> exitHandler;
@@ -184,8 +188,8 @@ public final class KeyApiImpl implements KeyApi {
             var env = data.find(proofId.env());
             options.configure(proof);
             try {
-                System.out.println("Starting proof with setting "
-                    + proof.getSettings().getStrategySettings().getActiveStrategyProperties()
+                LOGGER.debug("Starting proof with stop mode {}",
+                    proof.getSettings().getStrategySettings().getActiveStrategyProperties()
                             .getProperty(StrategyProperties.STOPMODE_OPTIONS_KEY));
                 env.getProofControl().startAndWaitForAutoMode(proof);
                 // clientListener);
@@ -356,7 +360,48 @@ public final class KeyApiImpl implements KeyApi {
 
     @Override
     public CompletableFuture<List<TreeNodeDesc>> treeSubtree(ProofId proof, TreeNodeId nodeId) {
-        return CompletableFuture.completedFuture(List.of());
+        return CompletableFuture.supplyAsync(() -> {
+            var serial = Integer.parseInt(nodeId.id());
+            Node root = data.find(proof).root();
+
+            // locate the requested node by its serial number
+            Node start = null;
+            var search = new Stack<Node>();
+            search.push(root);
+            while (!search.empty()) {
+                var node = search.pop();
+                if (node.serialNr() == serial) {
+                    start = node;
+                    break;
+                }
+                var it = node.childrenIterator();
+                while (it.hasNext()) {
+                    search.push(it.next());
+                }
+            }
+            if (start == null) {
+                return List.of();
+            }
+
+            // collect the whole subtree rooted at `start`, in pre-order
+            // (the node itself followed by its descendants)
+            var result = new ArrayList<TreeNodeDesc>();
+            var stack = new Stack<Node>();
+            stack.push(start);
+            while (!stack.empty()) {
+                var node = stack.pop();
+                result.add(TreeNodeDesc.from(proof, node));
+                var children = new ArrayList<Node>();
+                var it = node.childrenIterator();
+                while (it.hasNext()) {
+                    children.add(it.next());
+                }
+                for (int i = children.size() - 1; i >= 0; i--) {
+                    stack.push(children.get(i));
+                }
+            }
+            return result;
+        });
     }
 
     @Override
