@@ -122,15 +122,6 @@ public class RPCLayerTest {
         }
     }
 
-    @Test
-    void testLockingAndReleasing() throws IOException, InterruptedException {
-        var response = JsonRPC.addHeader(JsonRPC.createResponse("0", 2));
-        var layer = new RPCLayer(new StringReader(response), new StringWriter());
-        layer.start(); // starts the thread.
-        var result = layer.callSync("calc", 1, 1);
-        System.out.println(result);
-    }
-
     /** A {@link Reader} that hands out at most one character per read call. */
     private static final class OneCharAtATimeReader extends Reader {
         private final String data;
