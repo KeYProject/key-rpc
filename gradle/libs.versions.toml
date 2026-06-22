@@ -11,6 +11,7 @@ therapi = "0.15.0"
 kotlin-gradle-plugin = "2.4.0"
 dokka = "2.2.0"
 spotless = "8.7.0"
+kotlinx-coroutines = "1.10.1"
 
 [libraries]
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin-gradle-plugin" }
@@ -28,3 +29,5 @@ guava = { module = "com.google.guava:guava", version.ref = "guava" }
 therapi-runtime-javadoc-scribe = { module = "com.github.therapi:therapi-runtime-javadoc-scribe", version.ref = "therapi" }
 therapi-runtime-javadoc = { module = "com.github.therapi:therapi-runtime-javadoc", version.ref = "therapi" }
 clickt = { module = "com.github.ajalt.clikt:clikt", version = "5.1.0" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
+kotlinx-coroutines-js = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core-js", version.ref = "kotlinx-coroutines" }

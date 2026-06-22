@@ -34,6 +34,9 @@ class Main : CliktCommand(name = "gendoc") {
     private val outputWeb: Path by option("--output-web", help = "Output folder")
         .path().default(Paths.get("../out"))
 
+    private val outputKotlinJs: Path by option("--output-kotlin-js", help = "Output folder for Kotlin/JS")
+        .path().default(Paths.get("../keyext.api.ktclient/src/commonMain/kotlin/org/key_project/key/api/client/stubs/"))
+
     override fun run() {
         val metadata = ExtractMetaData()
         metadata.run()
@@ -66,6 +69,18 @@ class Main : CliktCommand(name = "gendoc") {
             it.storage.get().path.writeText(
                 it.toString()
             )
+        }
+
+        // Kotlin/JS
+        Files.createDirectories(outputKotlinJs)
+        val kotlinJsGenerators = listOf(
+            KotlinJsGenerator.KotlinJsApiGenServer(metadata.api) to "KeyRemote.kt",
+            KotlinJsGenerator.KotlinJsApiGenClient(metadata.api) to "KeyClient.kt",
+            KotlinJsGenerator.KotlinJsDataGen(metadata.api) to "ApiModel.kt"
+        )
+        kotlinJsGenerators.forEach { (gen, fileName) ->
+            val content = gen.get()
+            Files.writeString(outputKotlinJs.resolve(fileName), content)
         }
     }
 

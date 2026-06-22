@@ -2,7 +2,7 @@ plugins {
     id("com.diffplug.spotless")
     id("org.jetbrains.dokka")
     id("org.jetbrains.kotlin.multiplatform")
-
+    kotlin("plugin.serialization") version "2.4.0"
 }
 
 repositories{mavenCentral()}
@@ -17,9 +17,13 @@ kotlin {
     // --- Source Sets ---
     sourceSets {
         commonMain.dependencies {
-            //implementation(libs.kotlinx.coroutines.core)
-            //implementation(libs.kotlinx.serialization.json)
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
             //implementation(libs.ktor.client.core)
+            implementation(libs.kotlinx.coroutines.core)
+        }
+
+        jsMain.dependencies {
+            implementation(libs.kotlinx.coroutines.js)
         }
 
         /*
