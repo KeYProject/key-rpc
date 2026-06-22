@@ -519,6 +519,13 @@ public final class KeyApiImpl implements KeyApi {
         clientApi = remoteProxy;
     }
 
+    /// Detaches the current client, e.g. after it disconnects in TCP server mode.
+    /// Subsequent notifications go to the no-op sink instead of a dead remote
+    /// proxy, until a new client attaches via {@link #setClientApi}.
+    public void disconnectClient() {
+        clientApi = noopClientApi();
+    }
+
     /// A {@link ClientApi} whose calls do nothing: notifications are dropped and
     /// requests resolve to {@code null}. Used as the default before a client is
     /// attached, see {@link #clientApi}.
