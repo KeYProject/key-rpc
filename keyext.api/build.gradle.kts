@@ -24,7 +24,7 @@ dependencies {
     annotationProcessor(libs.therapi.runtime.javadoc.scribe)
     api(libs.therapi.runtime.javadoc)
 
-    testImplementation("org.mockito:mockito-core:5.18.0")
+    testImplementation("org.mockito:mockito-core:5.23.0")
 }
 
 tasks.named<JavaCompile>("compileJava") {
