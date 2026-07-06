@@ -7,7 +7,10 @@ plugins {
     id("test-report-aggregation")
 }
 
-repositories { mavenCentral() }
+repositories {
+    mavenCentral()
+    maven { url = uri("https://central.sonatype.com/repository/maven-snapshots/") }
+}
 
 
 dependencies {
