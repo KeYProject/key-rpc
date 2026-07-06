@@ -1,14 +1,37 @@
 import org.jetbrains.dokka.gradle.engine.parameters.VisibilityModifier
 
-plugins { id("org.jetbrains.dokka") }
+plugins {
+    id("org.jetbrains.dokka")
+    jacoco
+    id("jacoco-report-aggregation")
+    id("test-report-aggregation")
+}
 
-repositories { mavenCentral() }
+repositories {
+    mavenCentral()
+    maven { url = uri("https://central.sonatype.com/repository/maven-snapshots/") }
+}
+
 
 dependencies {
-    dokka(project(":keyext.api"))
-    dokka(project(":keyext.api.doc"))
-    dokka(project(":keyext.api.app"))
-    dokka(project(":keyext.api.client"))
+    subprojects.forEach {
+        if(it.name != "tools") {
+            dokka(it)
+            jacocoAggregation(it)
+            testReportAggregation(it)
+        }
+    }
+}
+
+reporting {
+    reports {
+        create<AggregateTestReport>("aggregateTestReport") {
+            testSuiteName = "test"
+        }
+        create<JacocoCoverageReport>("aggregateCoverageReport") {
+            testSuiteName = "test"
+        }
+    }
 }
 
 dokka {
@@ -18,4 +41,8 @@ dokka {
         suppressObviousFunctions.set(true)
         offlineMode.set(false)
     }
+}
+
+jacoco {
+    toolVersion = "0.8.15"
 }

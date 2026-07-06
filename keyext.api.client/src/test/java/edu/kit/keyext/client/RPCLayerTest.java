@@ -116,14 +116,6 @@ public class RPCLayerTest {
         return v;
     }
 
-    private static void awaitUntil(java.util.function.BooleanSupplier condition)
-            throws InterruptedException {
-        long deadline = System.currentTimeMillis() + 5000;
-        while (!condition.getAsBoolean() && System.currentTimeMillis() < deadline) {
-            Thread.sleep(5);
-        }
-    }
-
     /** A {@link Reader} that hands out at most one character per read call. */
     private static final class OneCharAtATimeReader extends Reader {
         private final String data;
@@ -157,7 +149,7 @@ public class RPCLayerTest {
      */
     @Test
     @Timeout(value = 10, unit = TimeUnit.SECONDS)
-    void handlerSurvivesUnknownResponseId() throws Exception {
+    void handlerSurvivesUnknownResponseId() {
         var in = new FeedableReader();
         var layer = new RPCLayer(in, new StringWriter());
         layer.start();
@@ -235,7 +227,7 @@ public class RPCLayerTest {
 
         @Override
         public synchronized int read(char[] cbuf, int off, int len) throws IOException {
-            while (buffer.length() == 0 && !closed) {
+            while (buffer.isEmpty() && !closed) {
                 try {
                     wait();
                 } catch (InterruptedException e) {
@@ -243,7 +235,7 @@ public class RPCLayerTest {
                     throw new IOException(e);
                 }
             }
-            if (buffer.length() == 0 && closed) {
+            if (buffer.isEmpty() && closed) {
                 return -1;
             }
             int n = Math.min(len, buffer.length());

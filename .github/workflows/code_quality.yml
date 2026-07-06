@@ -11,6 +11,16 @@ on:
 env:
   JAVA_VERSION: 21
 
+# If a build is running in the current branch, and the branch is updated, we cancel the previous build and start
+# a new one with the updated changes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  code-quality: write
+
 
 jobs:
   formatting:
@@ -25,6 +35,89 @@ jobs:
           cache: 'gradle'
       - name: Build with Gradle
         run: ./gradlew --parallel --continue spotlessCheck
+
+  test_on_branch:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest ] #, macos-latest, windows-latest ]
+        jdk: [ 21 ]
+
+    env:
+      OS: ubuntu-latest
+      JDK: 21
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout latest code
+        uses: actions/checkout@v7.0.0
+        with:
+          fetch-depth: "0"
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+        ## Setup the specified version of Java (includes maven/gradle).
+      - &setupjava
+        name: Set up JDK ${{ matrix.jdk }}
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'              # v2 requires explicitly stating the distribution - `zulu` and `adopt` supported at time of writing
+          java-version: ${{ matrix.jdk }}   # Use matrix to select which JDK level to use
+          java-package: jdk                 # optional (jdk or jre) - defaults to jdk
+          cache: 'gradle'
+
+      - name: Setup SMT solvers
+        uses: keyproject/setup-smt@v0
+
+      - name: z3 version
+        run: z3 --version
+
+      - name: cvc5 version
+        run: cvc5 --version
+
+      - &checkjava
+        name: Echo exact java version being used
+        run: java -version
+
+      - name: Test with Gradle and generate coverage
+        run: ./gradlew --continue --parallel test aggregateCoverageReport aggregateTestReport
+
+      - run: python scripts/cover2cover.py build/reports/jacoco/aggregateCoverageReport/aggregateCoverageReport.xml **/src/main/{java,kotlin} > cov-report.xml
+        if: success() || failure()
+
+      - name: Upload coverage report
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: actions/upload-code-coverage@v1
+        with:
+          file: cov-report.xml
+          language: Java
+          label: code-coverage/jacoco
+
+      - name: Upload Test Report
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: aggregated-results
+          path: build/reports/tests/test/aggregated-results
+          compression-level: '9'
+          retention-days: 7
+
+      - name: Upload Coverage Report
+        if: success() || failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: aggregated-coverage
+          path:  build/reports/jacoco/aggregateCoverageReport/html/
+          compression-level: '9'
+          retention-days: 7
+
+      - name: Test reporting
+        uses: dorny/test-reporter@v3
+        if: success() || failure()
+        with:
+          name: Test Report
+          path: "*/build/test-results/test/*.xml"
+          reporter: java-junit
 
   unit-tests:
     strategy:

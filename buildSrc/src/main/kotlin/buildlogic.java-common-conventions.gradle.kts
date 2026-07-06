@@ -5,6 +5,11 @@ plugins {
     id("com.diffplug.spotless")
     id("org.jetbrains.kotlin.jvm")
     id("org.jetbrains.dokka")
+
+    id("test-report-aggregation")
+    id("jacoco-report-aggregation")
+    `jvm-test-suite`
+    jacoco
 }
 
 repositories {
@@ -22,6 +27,32 @@ java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
     }
+}
+
+testing {
+    suites {
+        getByName<JvmTestSuite>("test") {
+            useJUnitJupiter()
+            targets {
+                all {
+                    testTask.configure {
+                        // maxHeapSize = "8g"
+                        // jvmArgs("-Xmx2g")
+                        // finalizedBy(tasks.jacocoTestReport)
+                    }
+                }
+            }
+        }
+    }
+}
+
+tasks.withType<JavaCompile> {
+    options.encoding = "UTF-8"
+    options.compilerArgs.add("-parameters")
+
+    // See: https://docs.oracle.com/en/java/javase/12/tools/javac.html
+    options.compilerArgs.add("-Xlint:all")
+    // "-Werror", // Terminates compilation when warnings occur.
 }
 
 tasks.named<Test>("test") {
@@ -62,7 +93,7 @@ dokka {
             skipEmptyPackages.set(true)
             skipDeprecated.set(false)
             suppressGeneratedFiles.set(true)
-            //samples.from("samples/Basic.kt", "samples/Advanced.kt")
+            // samples.from("samples/Basic.kt", "samples/Advanced.kt")
 
             sourceLink {
                 remoteUrl("https://github.com/keyproject/key-rpc/tree/main/")
@@ -97,7 +128,7 @@ dokka {
     }
 
     dokkaPublications.html {
-        //moduleName.set()
+        // moduleName.set()
         val exists = layout.projectDirectory.file("README.md").asFile
         if (exists.exists()) {
             includes.from("README.md")
@@ -120,3 +151,17 @@ val dokkaJavadocJar by tasks.registering(Jar::class) {
     archiveClassifier.set("javadoc")
 }
 */
+
+jacoco {
+    toolVersion = "0.8.15"
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+        csv.required.set(false)
+    }
+}
