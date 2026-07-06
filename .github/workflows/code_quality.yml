@@ -80,7 +80,9 @@ jobs:
         run: java -version
 
       - name: Test with Gradle and generate coverage
-        run: ./gradlew --continue --parallel test aggregateCoverageReport aggregateTestReport
+        run: ./gradlew --continue --parallel test
+
+      - run: ./gradlew --continue --parallel aggregateCoverageReport aggregateTestReport
 
       - run: python scripts/cover2cover.py build/reports/jacoco/aggregateCoverageReport/aggregateCoverageReport.xml **/src/main/java > cov-report.xml
         if: success() || failure()
