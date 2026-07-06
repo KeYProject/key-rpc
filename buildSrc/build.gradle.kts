@@ -10,4 +10,6 @@ dependencies {
     implementation(libs.kotlin.gradle.plugin)
     implementation(libs.spotless)
     implementation(libs.dokka)
+    implementation(libs.jacoco.cobertura)
+    implementation(libs.vanniktech.maven)
 }
