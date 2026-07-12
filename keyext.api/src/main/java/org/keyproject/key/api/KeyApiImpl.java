@@ -164,12 +164,12 @@ public final class KeyApiImpl implements KeyApi {
             var proof = data.find(proofId);
             var env = data.find(proofId.env());
             var script = ParsingFacade.parseScript(scriptLine);
-            var pe = new ProofScriptEngine(script);
+            var pe = new ProofScriptEngine(proof);
 
             try {
-                pe.execute((AbstractUserInterfaceControl) env.getProofControl(), proof);
+                pe.execute((AbstractUserInterfaceControl) env.getProofControl(), script);
                 return new MacroStatistic(proofId, scriptLine, -1, -1);
-            } catch (IOException | InterruptedException | ScriptException e) {
+            } catch (InterruptedException | ScriptException e) {
                 throw new RuntimeException(e);
             }
         });
@@ -504,7 +504,7 @@ public final class KeyApiImpl implements KeyApi {
         });
     }
 
-    private NodeTextSpan[] expandTermsForTable(PositionTable table) {
+    private List<NodeTextSpan> expandTermsForTable(PositionTable table) {
         int nonEmptyRanges = 0;
         for (int i = 0; i < table.getRows(); i++) {
             if (table.getRange(i).length() != 0) {
@@ -512,7 +512,7 @@ public final class KeyApiImpl implements KeyApi {
             }
         }
 
-        var terms = new NodeTextSpan[nonEmptyRanges];
+        var terms = new ArrayList<NodeTextSpan>(nonEmptyRanges);
         int j = 0;
         for (int i = 0; i < table.getRows(); i++) {
             var range = table.getRange(i);
@@ -521,7 +521,7 @@ public final class KeyApiImpl implements KeyApi {
             }
 
             var children = expandTermsForTable(table.getChild(i));
-            terms[j] = new NodeTextSpan(range.start(), range.end(), children);
+            terms.set(j, new NodeTextSpan(range.start(), range.end(), children));
             j++;
         }
 

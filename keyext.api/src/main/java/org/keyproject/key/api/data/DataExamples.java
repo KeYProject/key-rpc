@@ -68,7 +68,6 @@ public class DataExamples {
      * .stream().map(ExampleDesc::from).findFirst().orElseThrow();
      * }
      */
-
     public ServerManagement.SetTraceParams getTraceParams() {
         return new ServerManagement.SetTraceParams(TraceValue.Info);
     }

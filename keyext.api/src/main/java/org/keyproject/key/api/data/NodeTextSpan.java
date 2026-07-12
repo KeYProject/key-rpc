@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: GPL-2.0-only */
 package org.keyproject.key.api.data;
 
-public record NodeTextSpan(int start, int end, NodeTextSpan[] children)
+import java.util.List;
+
+public record NodeTextSpan(int start, int end, List<NodeTextSpan> children)
         implements KeYDataTransferObject {
 }

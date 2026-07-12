@@ -3,6 +3,7 @@ from keyapi import LspEndpoint, LoadParams, StrategyOptions
 from keyapi.server_internal import KeyServer
 from keyapi.rpc import JsonRpcEndpoint
 
+
 class NetKeY(object):
     def __init__(self, target):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -33,8 +34,9 @@ class NetKeY(object):
         self.outStream.close()
         self.socket.close()
 
+
 class KeYEnv(object):
-    def __init__(self, key, load_params : LoadParams):
+    def __init__(self, key, load_params: LoadParams):
         self.key = key
         self.envHandle = self.key.loading_load(load_params)
 
@@ -47,6 +49,7 @@ class KeYEnv(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.key.env_dispose(self.envHandle)
 
+
 class KeYProof(object):
     def __init__(self, key, contract):
         self.key = key
@@ -58,10 +61,10 @@ class KeYProof(object):
     def root(self):
         return self.key.proofTree_root(self.proofHandle)
 
-    def auto(self, options = StrategyOptions(None, None, None, None, None, 10000)):
+    def auto(self, options=StrategyOptions(None, None, None, None, None, 10000)):
         return self.key.proof_auto(self.proofHandle, options)
 
-    def goals(self, open_only = False, only_enabled = False):
+    def goals(self, open_only=False, only_enabled=False):
         return self.key.proof_goals(self.proofHandle, open_only, only_enabled)
 
     def __exit__(self, exc_type, exc_val, exc_tb):

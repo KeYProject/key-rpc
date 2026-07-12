@@ -26,9 +26,6 @@ public enum TraceValue implements KeYDataTransferObject {
     Log,
     /**
      * A debug message.
-     *
-     * @proposed
-     * @since 3.18.0
      */
     Debug
 }

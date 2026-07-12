@@ -3,37 +3,34 @@
  * SPDX-License-Identifier: GPL-2.0-only */
 package org.keyproject.key.api;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Set;
-
 import de.uka.ilkd.key.control.KeYEnvironment;
 import de.uka.ilkd.key.control.ProofControl;
 import de.uka.ilkd.key.java.Services;
 import de.uka.ilkd.key.macros.ProofMacro;
 import de.uka.ilkd.key.pp.PosInSequent;
 import de.uka.ilkd.key.proof.Goal;
-import de.uka.ilkd.key.rule.*;
-
+import de.uka.ilkd.key.rule.NoPosTacletApp;
+import de.uka.ilkd.key.rule.RewriteTaclet;
+import de.uka.ilkd.key.rule.Taclet;
+import de.uka.ilkd.key.rule.TacletApp;
+import org.jspecify.annotations.NullMarked;
 import org.key_project.logic.Name;
 import org.key_project.prover.proof.rulefilter.TacletFilter;
 import org.key_project.prover.sequent.PosInOccurrence;
 import org.key_project.util.collection.ImmutableList;
-import org.key_project.util.collection.ImmutableSLList;
 import org.key_project.util.reflection.ClassLoaderUtil;
-
-import org.jspecify.annotations.NonNull;
 import org.keyproject.key.api.data.KeyIdentifications.NodeTextId;
 import org.keyproject.key.api.data.KeyIdentifications.TermActionId;
 import org.keyproject.key.api.data.TermActionDesc;
 import org.keyproject.key.api.data.TermActionKind;
 
+import java.util.*;
+
 /**
  * @author Alexander Weigl
  * @version 1 (29.10.23)
  */
+@NullMarked
 public class TermActionUtil {
     private static final Set<Name> CLUTTER_RULESETS =
         Set.of(new Name("notHumanReadable"),
@@ -78,8 +75,10 @@ public class TermActionUtil {
 
     private final HashMap<Integer, TacletApp> tacletRules = new LinkedHashMap<>();
 
-    public TermActionUtil(@NonNull NodeTextId nodeTextId, @NonNull KeYEnvironment<?> env,
-            @NonNull PosInSequent pos, @NonNull Goal goal, int caretPos) {
+    public TermActionUtil(NodeTextId nodeTextId,
+                          KeYEnvironment<?> env,
+                          PosInSequent pos,
+                          Goal goal, int caretPos) {
         this.pos = pos;
         this.goal = goal;
         this.nodeTextId = nodeTextId;
@@ -97,9 +96,9 @@ public class TermActionUtil {
         ImmutableList<TacletApp> findTaclet = c.getFindTaclet(goal, occ);
         ImmutableList<? extends TacletApp> findTaclets =
             occ != null
-                    ? goal.ruleAppIndex().getTacletAppAt(TacletFilter.TRUE, occ,
-                        goal.getOverlayServices())
-                    : ImmutableList.of();
+                ? goal.ruleAppIndex().getTacletAppAt(TacletFilter.TRUE, occ,
+                goal.getOverlayServices())
+                : ImmutableList.of();
         ImmutableList<NoPosTacletApp> noFindTaclets =
             goal.ruleAppIndex().getNoFindTaclet(TacletFilter.TRUE, goal.getOverlayServices());
 
@@ -141,8 +140,8 @@ public class TermActionUtil {
      * @return list without RewriteTaclets
      */
     private static ImmutableList<TacletApp> removeRewrites(
-            ImmutableList<TacletApp> list) {
-        ImmutableList<TacletApp> result = ImmutableSLList.nil();
+        ImmutableList<TacletApp> list) {
+        ImmutableList<TacletApp> result = ImmutableList.nil();
         for (TacletApp tacletApp : list) {
             Taclet taclet = tacletApp.taclet();
             result = (taclet instanceof RewriteTaclet ? result : result.prepend(tacletApp));

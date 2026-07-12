@@ -36,52 +36,52 @@ abstract class JavaGenerator(protected val metamodel: Metamodel.KeyApi) : Suppli
         ClassOrInterfaceType(null, name)
 
     protected fun adJava(typeName: String): Type = when (typeName) {
-            Metamodel.INT.name, "INT" -> PrimitiveType(INT)
+        Metamodel.INT.name, "INT" -> PrimitiveType(INT)
 
-            Metamodel.LONG.name, "LONG" -> PrimitiveType(LONG)
+        Metamodel.LONG.name, "LONG" -> PrimitiveType(LONG)
 
-            Metamodel.STRING.name, "STRING" -> ClassOrInterfaceType(null, "String")
+        Metamodel.STRING.name, "STRING" -> ClassOrInterfaceType(null, "String")
 
-            Metamodel.BOOL.name, "BOOL" -> PrimitiveType(BOOLEAN)
+        Metamodel.BOOL.name, "BOOL" -> PrimitiveType(BOOLEAN)
 
-            Metamodel.DOUBLE.name, "DOUBLE" -> PrimitiveType(DOUBLE)
+        Metamodel.DOUBLE.name, "DOUBLE" -> PrimitiveType(DOUBLE)
 
-            else -> {
-                val t = findType(typeName)
-                adJava(t)
-            }
+        else -> {
+            val t = findType(typeName)
+            adJava(t)
         }
+    }
 
     fun listType(t: Type) = ClassOrInterfaceType(null, SimpleName("List"), NodeList(t))
     fun eitherType(a: Type, b: Type) = ClassOrInterfaceType(null, SimpleName("Either"), NodeList(a, b))
 
     fun adJava(t: Metamodel.Type): Type = when (t) {
-            is Metamodel.ListType -> listType(adJava(t.componentType))
+        is Metamodel.ListType -> listType(adJava(t.componentType))
 
-            is Metamodel.EitherType -> eitherType(adJava(t.a), adJava(t.b))
+        is Metamodel.EitherType -> eitherType(adJava(t.a), adJava(t.b))
 
-            Metamodel.INT -> PrimitiveType(INT)
+        Metamodel.INT -> PrimitiveType(INT)
 
-            Metamodel.LONG -> PrimitiveType(LONG)
+        Metamodel.LONG -> PrimitiveType(LONG)
 
-            Metamodel.STRING -> ClassOrInterfaceType(null, "String")
+        Metamodel.STRING -> ClassOrInterfaceType(null, "String")
 
-            Metamodel.BOOL -> PrimitiveType(BOOLEAN)
+        Metamodel.BOOL -> PrimitiveType(BOOLEAN)
 
-            Metamodel.DOUBLE -> PrimitiveType(DOUBLE)
+        Metamodel.DOUBLE -> PrimitiveType(DOUBLE)
 
-            is Metamodel.EnumType,
-            is Metamodel.ObjectType -> ClassOrInterfaceType(null, t.name)
-        }
+        is Metamodel.EnumType,
+        is Metamodel.ObjectType -> ClassOrInterfaceType(null, t.name)
+    }
 
     fun findType(typeName: String?): Metamodel.Type = this.metamodel.types.values
-            .firstOrNull {
-                if (it is Metamodel.ListType) {
-                    it.componentType.name == typeName
-                } else {
-                    it.name == typeName
-                }
-            } ?: Metamodel.ObjectType("Object", "Object", listOf(), null)
+        .firstOrNull {
+            if (it is Metamodel.ListType) {
+                it.componentType.name == typeName
+            } else {
+                it.name == typeName
+            }
+        } ?: Metamodel.ObjectType("Object", "Object", listOf(), null)
 
     class JavaApiGenServer(metamodel: Metamodel.KeyApi) : JavaGenerator(metamodel) {
         override fun get(): CompilationUnit {
@@ -111,10 +111,10 @@ abstract class JavaGenerator(protected val metamodel: Metamodel.KeyApi) : Suppli
                         val cname = "Segment${name.capitalize()}"
                         this.addMember(
                             ClassOrInterfaceDeclaration().apply {
-                            setName(cname)
-                            sorted.forEach { addMember(serverEndpoint(it)) }
-                            addJavadoc(metamodel.segmentDocumentation[name])
-                        }
+                                setName(cname)
+                                sorted.forEach { addMember(serverEndpoint(it)) }
+                                addJavadoc(metamodel.segmentDocumentation[name])
+                            }
                         )
 
                         addField(cname, name, PUBLIC, FINAL).variables().first()
@@ -193,55 +193,59 @@ abstract class JavaGenerator(protected val metamodel: Metamodel.KeyApi) : Suppli
 
     class JavaDataGen(metamodel: Metamodel.KeyApi) : JavaGenerator(metamodel) {
         override fun get(): CompilationUnit = CompilationUnit().apply {
-                setPackageDeclaration(PACKAGE)
-                addImport("org.key_project.key.api.client.BaseLocal")
-                addClass("ApiModel", PUBLIC, FINAL).apply {
-                    metamodel.types.values.forEach {
-                        addMember(printType(it))
-                    }
-
-                    val names: String =
-                        metamodel.types.values.joinToString(", ") {
-                            "\"%s\": %s".format(
-                                it.identifier,
-                                it.name
-                            )
-                        }
-
-                    // out.format("KEY_DATA_CLASSES = { %s }%n%n", names)
-                    /*val namesReverse: String =
-                metamodel.types.values
-                    .map {
-                        "\"%s\": \"%s\"".format(it.name, it.identifier)
-                    }
-                    .joinToString(",")
-            out.format("KEY_DATA_CLASSES_REV = { %s }%n%n", namesReverse)
-             */
+            setPackageDeclaration(PACKAGE)
+            addImport("org.key_project.key.api.client.BaseLocal")
+            addClass("ApiModel", PUBLIC, FINAL).apply {
+                metamodel.types.values.forEach {
+                    printType(it)?.let { declaration -> addMember(declaration) }
                 }
+
+                val names: String =
+                    metamodel.types.values.joinToString(", ") {
+                        "\"%s\": %s".format(
+                            it.identifier,
+                            it.name
+                        )
+                    }
+
+                // out.format("KEY_DATA_CLASSES = { %s }%n%n", names)
+                /*val namesReverse: String =
+            metamodel.types.values
+                .map {
+                    "\"%s\": \"%s\"".format(it.name, it.identifier)
+                }
+                .joinToString(",")
+        out.format("KEY_DATA_CLASSES_REV = { %s }%n%n", namesReverse)
+         */
             }
+        }
 
-        private fun printType(type: Metamodel.Type): TypeDeclaration<*> =
-            if (type is Metamodel.ObjectType) {
-                ClassOrInterfaceDeclaration().apply {
-                    setName(type.name)
-                    addJavadoc(type.documentation)
-                    addAnnotation("lombok.Data")
-                    addModifier(PUBLIC, STATIC, FINAL)
-                    type.fields.forEach {
-                        addField(adJava(it.type), it.name, PRIVATE)
-                            .addJavadoc(it.documentation)
+        private fun printType(type: Metamodel.Type): TypeDeclaration<*>? =
+            when (type) {
+                is Metamodel.ObjectType -> {
+                    ClassOrInterfaceDeclaration().apply {
+                        setName(type.name)
+                        addJavadoc(type.documentation)
+                        addAnnotation("lombok.Data")
+                        addModifier(PUBLIC, STATIC, FINAL)
+                        type.fields.forEach {
+                            addField(adJava(it.type), it.name, PRIVATE)
+                                .addJavadoc(it.documentation)
+                        }
                     }
                 }
-            } else if (type is Metamodel.EnumType) {
-                EnumDeclaration().apply {
-                    setName(type.name)
-                    addJavadoc(type.documentation)
-                    type.values.forEach {
-                        addEnumConstant(it.value).addJavadoc(it.documentation)
+
+                is Metamodel.EnumType -> {
+                    EnumDeclaration().apply {
+                        setName(type.name)
+                        addJavadoc(type.documentation)
+                        type.values.forEach {
+                            addEnumConstant(it.value).addJavadoc(it.documentation)
+                        }
                     }
                 }
-            } else {
-                error("!!!")
+
+                else -> null
             }
     }
 }

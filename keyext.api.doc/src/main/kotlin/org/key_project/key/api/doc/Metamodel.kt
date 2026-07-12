@@ -120,7 +120,8 @@ class Metamodel {
     data class Field(
         val name: String,  /* Type */
         val type: String,
-        val documentation: HelpText?
+        val documentation: HelpText?,
+        val nullable: Boolean = false
     )
 
     /** A data type */
@@ -222,7 +223,7 @@ class Metamodel {
         val typeName: String,
         val typeFullName: String,
         val values: MutableList<EnumConstant>,
-        override val documentation: HelpText
+        override val documentation: HelpText?
     ) : Type {
         override val name = typeName
         override val identifier = typeFullName

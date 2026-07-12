@@ -17,7 +17,7 @@ class MyEncoder(json.JSONEncoder):
 
     def default(self, o):  # pylint: disable=E0202
         d = dict(o.__dict__)
-        d['$class'] = KEY_DATA_CLASSES_REV[type(o).__name__]
+        d["$class"] = KEY_DATA_CLASSES_REV[type(o).__name__]
         return d
 
 
@@ -34,10 +34,10 @@ class ErrorCodes(enum.Enum):
 
 
 class JsonRpcEndpoint(object):
-    '''
+    """
     Thread safe JSON RPC endpoint implementation. Responsible to recieve and send JSON RPC messages, as described in the
     protocol. More information can be found: https://www.jsonrpc.org/
-    '''
+    """
 
     def __init__(self, stdin, stdout):
         self.stdin = stdin
@@ -47,7 +47,7 @@ class JsonRpcEndpoint(object):
 
     @staticmethod
     def __add_header(content_bytes):
-        '''
+        """
         Prepends the JSON-RPC framing header to an already UTF-8 encoded body.
 
         The ``Content-Length`` value is the number of *bytes* of the body (per
@@ -58,16 +58,16 @@ class JsonRpcEndpoint(object):
 
         :param bytes content_bytes: the UTF-8 encoded JSON body
         :return: the framed message as bytes
-        '''
+        """
         header = "%s%d\r\n\r\n" % (LEN_HEADER, len(content_bytes))
         return header.encode("ascii") + content_bytes
 
     def send_request(self, message):
-        '''
+        """
         Sends the given message.
 
         :param dict message: The message to send.
-        '''
+        """
         json_string = json.dumps(message, cls=MyEncoder)
         content_bytes = json_string.encode("utf-8")
         jsonrpc_req = self.__add_header(content_bytes)
@@ -76,14 +76,14 @@ class JsonRpcEndpoint(object):
             self.stdout.flush()
 
     def _read_exactly(self, count):
-        '''
+        """
         Reads exactly ``count`` bytes, looping until they have all arrived.
 
         ``read(n)`` on a socket stream may legally return fewer than ``n`` bytes,
         so a single ``read`` is not enough to consume a framed message.
 
         :return: the bytes, or ``None`` if EOF is reached first
-        '''
+        """
         chunks = []
         remaining = count
         while remaining > 0:
@@ -95,11 +95,11 @@ class JsonRpcEndpoint(object):
         return b"".join(chunks)
 
     def recv_response(self) -> object:
-        '''
+        """
         Receives a message. Expects the input stream to be binary.
 
         :return: a message, or ``None`` when the stream has reached EOF
-        '''
+        """
         with self.read_lock:
             message_size = None
             while True:
@@ -109,23 +109,28 @@ class JsonRpcEndpoint(object):
                     # server quit
                     return None
                 if not line.endswith(b"\r\n"):
-                    raise ResponseError(ErrorCodes.ParseError, "Bad header: missing newline")
+                    raise ResponseError(
+                        ErrorCodes.ParseError, "Bad header: missing newline"
+                    )
                 # remove the "\r\n" and decode the (ASCII) header line
                 line = line[:-2].decode("ascii")
                 if line == "":
                     # done with the headers
                     break
                 elif line.startswith(LEN_HEADER):
-                    line = line[len(LEN_HEADER):]
+                    line = line[len(LEN_HEADER) :]
                     if not line.isdigit():
-                        raise ResponseError(ErrorCodes.ParseError,
-                                            "Bad header: size is not int")
+                        raise ResponseError(
+                            ErrorCodes.ParseError, "Bad header: size is not int"
+                        )
                     message_size = int(line)
                 elif line.startswith(TYPE_HEADER):
                     # nothing todo with type for now.
                     pass
                 else:
-                    raise ResponseError(ErrorCodes.ParseError, "Bad header: unkown header")
+                    raise ResponseError(
+                        ErrorCodes.ParseError, "Bad header: unkown header"
+                    )
             if not message_size:
                 raise ResponseError(ErrorCodes.ParseError, "Bad header: missing size")
 
@@ -142,9 +147,9 @@ def object_decoder(obj):
     if type(obj) is list:
         return [object_decoder(item) for item in obj]
     if type(obj) is dict:
-        for k,v in obj.items():
+        for k, v in obj.items():
             obj[k] = object_decoder(v)
-        if '$class' in obj:
+        if "$class" in obj:
             class_name = obj["$class"]
             del obj["$class"]
             return KEY_DATA_CLASSES[class_name](**obj)
@@ -152,7 +157,13 @@ def object_decoder(obj):
 
 
 class LspEndpoint(threading.Thread):
-    def __init__(self, json_rpc_endpoint: JsonRpcEndpoint, method_callbacks=None, notify_callbacks=None, timeout=None):
+    def __init__(
+        self,
+        json_rpc_endpoint: JsonRpcEndpoint,
+        method_callbacks=None,
+        notify_callbacks=None,
+        timeout=None,
+    ):
         super().__init__()
         self.json_rpc_endpoint: JsonRpcEndpoint = json_rpc_endpoint
         self.notify_callbacks: Dict = notify_callbacks or {}
@@ -206,15 +217,21 @@ class LspEndpoint(threading.Thread):
                     if rpc_id:
                         # a call for method
                         if method not in self.method_callbacks:
-                            raise ResponseError(ErrorCodes.MethodNotFound,
-                                                "Method not found: {method}".format(method=method))
+                            raise ResponseError(
+                                ErrorCodes.MethodNotFound,
+                                "Method not found: {method}".format(method=method),
+                            )
                         result = self.method_callbacks[method](params)
                         self.send_response(rpc_id, result, None)
                     else:
                         # a call for notify
                         if method not in self.notify_callbacks:
                             # Have nothing to do with this.
-                            print("Notify method not found: {method}.".format(method=method))
+                            print(
+                                "Notify method not found: {method}.".format(
+                                    method=method
+                                )
+                            )
                         else:
                             self.notify_callbacks[method](params)
                 else:
@@ -266,7 +283,9 @@ class LspEndpoint(threading.Thread):
             raise TimeoutError("no response within %s seconds" % self._timeout)
         result, error = self.response_dict.pop(current_id)
         if error:
-            raise ResponseError(error.get("code"), error.get("message"), error.get("data"))
+            raise ResponseError(
+                error.get("code"), error.get("message"), error.get("data")
+            )
         return result
 
     def send_notification(self, method_name, kwargs):

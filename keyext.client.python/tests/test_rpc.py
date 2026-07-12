@@ -60,7 +60,8 @@ class _EchoEndpoint:
             self.sent.append(message)
         if message.get("id") is not None and "method" in message:
             self._responses.put(
-                {"jsonrpc": "2.0", "id": message["id"], "result": message["id"]})
+                {"jsonrpc": "2.0", "id": message["id"], "result": message["id"]}
+            )
 
     def recv_response(self):
         return self._responses.get()
@@ -80,9 +81,10 @@ class WriteFramingTest(unittest.TestCase):
     def test_send_request_advertises_body_byte_length(self):
         out = io.BytesIO()
         JsonRpcEndpoint(io.BytesIO(), out).send_request(
-            {"jsonrpc": "2.0", "id": 1, "params": [UNICODE]})
+            {"jsonrpc": "2.0", "id": 1, "params": [UNICODE]}
+        )
         header, body = out.getvalue().split(b"\r\n\r\n", 1)
-        advertised = int(header[len(b"Content-Length: "):])
+        advertised = int(header[len(b"Content-Length: ") :])
         self.assertEqual(advertised, len(body))
 
 
@@ -112,8 +114,9 @@ class ReadFramingTest(unittest.TestCase):
         # #6: read() may return fewer bytes than requested; the body must still
         # be reassembled in full before being decoded.
         text = '{"jsonrpc": "2.0", "id": 7, "result": "' + UNICODE + '"}'
-        ep = JsonRpcEndpoint(_DripBytesIO(_frame_server_side(text), chunk=1),
-                             io.BytesIO())
+        ep = JsonRpcEndpoint(
+            _DripBytesIO(_frame_server_side(text), chunk=1), io.BytesIO()
+        )
         self.assertEqual(ep.recv_response()["result"], UNICODE)
 
 

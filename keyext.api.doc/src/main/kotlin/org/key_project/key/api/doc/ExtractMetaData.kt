@@ -12,7 +12,6 @@ import java.io.File
 import java.lang.reflect.*
 import java.util.*
 import java.util.concurrent.CompletableFuture
-import java.util.function.Function
 import java.util.stream.Stream
 
 /**
@@ -27,6 +26,24 @@ class ExtractMetaData : Runnable {
     val api: Metamodel.KeyApi = Metamodel.KeyApi(endpoints, types, segDocumentation)
 
     override fun run() {
+        // init with default built-in types
+        types["int"] = Metamodel.INT
+        types["Integer"] = Metamodel.INT
+        types["short"] = Metamodel.INT
+        types["short"] = Metamodel.INT
+        types["byte"] = Metamodel.INT
+        types["byte"] = Metamodel.INT
+        types["long"] = Metamodel.LONG
+        types["Long"] = Metamodel.LONG
+        types["boolean"] = Metamodel.BOOL
+        types["Boolean"] = Metamodel.BOOL
+        types["bool"] = Metamodel.BOOL
+        types["Bool"] = Metamodel.BOOL
+        types["String"] = Metamodel.STRING
+        types["string"] = Metamodel.STRING
+        types["double"] = Metamodel.DOUBLE
+        types["Double"] = Metamodel.DOUBLE
+
         for (method in KeyApi::class.java.getMethods()) {
             addServerEndpoint(method)
         }
@@ -118,11 +135,11 @@ class ExtractMetaData : Runnable {
         parameters.map { this.translate(it) }.toList()
 
     private fun translate(parameter: Parameter): Metamodel.Argument {
-        val type = getOrFindType(parameter.getType())!!.name
+        val type = getOrFindType(parameter.getType()).name
         return Metamodel.Argument(parameter.name, type)
     }
 
-    private fun getOrFindType(type: Class<*>): Metamodel.Type? {
+    private fun getOrFindType(type: Class<*>): Metamodel.Type {
         if (type == String::class.java) return Metamodel.STRING
         if (type == Int::class.java) return Metamodel.INT
         if (type == java.lang.Double::class.java) return Metamodel.DOUBLE
@@ -141,7 +158,7 @@ class ExtractMetaData : Runnable {
             return getOrFindType(type.getTypeParameters()[0].javaClass)
         }
 
-        if (type == MutableList::class.java) {
+        if (type == List::class.java) {
             // TODO try to get the type below.
             val subType = getOrFindType(type.getTypeParameters()[0])
             return Metamodel.ListType(subType)
@@ -149,45 +166,43 @@ class ExtractMetaData : Runnable {
 
         check(!(type == Class::class.java || type == Constructor::class.java || type == Proof::class.java)) { "Forbidden class reached!" }
 
-        val t = types.get(type.name)
+        val t = types[type.name] ?: types[type.simpleName]
         if (t != null) return t
         val a = createType(type)
-        types.put(type.name, a)
         return a
     }
 
     private fun createType(type: Class<*>): Metamodel.Type {
         val documentation = findDocumentation(type)
         if (type.isEnum) {
-            return Metamodel.EnumType(
-                type.getSimpleName(), type.getName(),
-                Arrays.stream(type.getEnumConstants())
-                    .map { it: Any? ->
-                        Metamodel.EnumConstant(
-                            it.toString(),
-                            findDocumentationEnum(type, it!!)
-                        )
-                    }
-                    .toList(),
-                documentation!!
-            )
+            val constants = arrayListOf<Metamodel.EnumConstant>()
+            val mtype = Metamodel.EnumType(type.getSimpleName(), type.getName(), constants, documentation)
+            types[mtype.name] = mtype
+
+            type.getEnumConstants().map {
+                Metamodel.EnumConstant(it.toString(), findDocumentationEnum(type, it))
+            }.forEach { constants.add(it) }
+
+            return mtype
         }
 
-        val list = type.getDeclaredFields()
+        val fields = arrayListOf<Metamodel.Field>()
+        val mtype = Metamodel.ObjectType(type.getSimpleName(), type.getName(), fields, documentation)
+        types[mtype.name] = mtype
+
+        type.getDeclaredFields().asSequence()
             .map {
                 Metamodel.Field(
-                    it.name, getOrFindTypeName(it.genericType),
+                    it.name, getOrFindType(it.genericType).name,
                     if (type.isRecord) {
                         findDocumentationRecord(type, it.name)
                     } else {
                         findDocumentation(it)
                     }
                 )
-            }
+            }.forEach { fields.add(it) }
 
-        return Metamodel.ObjectType(
-            type.getSimpleName(), type.getName(), list, documentation
-        )
+        return mtype
     }
 
     private fun findDocumentation(it: Field): Metamodel.HelpText? {
@@ -271,130 +286,39 @@ class ExtractMetaData : Runnable {
         }
     }
 
-    private fun getOrFindTypeName(type: Type): String {
-        when (type) {
-            is GenericArrayType -> throw RuntimeException("Unwanted type found: $type")
-
-            is Class<*> -> return getOrFindTypeName(type)
-
-            is ParameterizedType -> {
-                return when (val typeName = type.rawType.typeName) {
-                    CompletableFuture::class.java.name -> {
-                        getOrFindTypeName(type.actualTypeArguments[0])
-                    }
-
-                    List::class.java.name -> {
-                        val base = getOrFindTypeName(type.actualTypeArguments[0])
-                        "$base[]"
-                    }
-
-                    Either::class.java.name -> {
-                        val base1 = getOrFindTypeName(type.actualTypeArguments[0])
-                        val base2 = getOrFindTypeName(type.actualTypeArguments[1])
-                        "either<$base1, $base2>"
-                    }
-
-                    else -> "unsupported parameterized type: $typeName"
-                }
-            }
-        }
-        return "<error>!!!"
-    }
-
-    private fun getOrFindTypeName(type: Class<*>): String {
-        val t = types[type.name]
-        if (t != null) return t.name
-
-        return when (type) {
-            String::class.java -> Metamodel.STRING.name
-
-            Int::class.java -> Metamodel.INT.name
-
-            Double::class.java -> Metamodel.DOUBLE.name
-
-            Long::class.java -> Metamodel.LONG.name
-
-            Char::class.java -> Metamodel.LONG.name
-
-            File::class.java -> Metamodel.STRING.name
-
-            Boolean::class.java -> Metamodel.BOOL.name
-
-            java.lang.Boolean.TYPE -> Metamodel.BOOL.name
-
-            Integer.TYPE -> Metamodel.INT.name
-
-            java.lang.Double.TYPE -> Metamodel.DOUBLE.name
-
-            java.lang.Long.TYPE -> Metamodel.LONG.name
-
-            Character.TYPE -> Metamodel.LONG.name
-
-            CompletableFuture::class.java -> {
-                getOrFindTypeName(type.getTypeParameters()[0].javaClass)
-            }
-
-            MutableList::class.java -> {
-                val subType = getOrFindTypeName(type.getTypeParameters()[0])
-                "$subType[]"
-            }
-
-            else -> {
-                check(!(type == Class::class.java || type == Constructor::class.java || type == Proof::class.java)) {
-                    "Forbidden class reached!"
-                }
-                type.getSimpleName()
-            }
-        }
-    }
-
     fun getOrFindType(type: Type): Metamodel.Type = when (type) {
-            is Class<*> -> getOrFindType(type)!!
+        is Class<*> -> getOrFindType(type)
 
-            is ParameterizedType -> {
-                when (val typeName = type.rawType.typeName) {
-                    CompletableFuture::class.java.name -> getOrFindType(type.actualTypeArguments[0])
+        is ParameterizedType -> {
+            when (val typeName = type.rawType.typeName) {
+                CompletableFuture::class.java.name -> getOrFindType(type.actualTypeArguments[0])
 
-                    List::class.java.name -> Metamodel.ListType(getOrFindType(type.actualTypeArguments[0]))
+                List::class.java.name -> Metamodel.ListType(getOrFindType(type.actualTypeArguments[0]))
 
-                    Either::class.java.name ->
-                        Metamodel.EitherType(
-                            getOrFindType(type.actualTypeArguments[0]),
-                            getOrFindType(type.actualTypeArguments[1])
-                        )
+                Either::class.java.name ->
+                    Metamodel.EitherType(
+                        getOrFindType(type.actualTypeArguments[0]),
+                        getOrFindType(type.actualTypeArguments[1])
+                    )
 
-                    else -> error("unsupported parameterized type: $typeName")
-                }
+                else -> error("unsupported parameterized type: $typeName")
             }
-
-            else -> error("Could not determine type for $type")
         }
+
+        else -> error("Could not determine type for $type")
+    }
 
     companion object {
         private fun printFieldDocumentation(javadoc: FieldJavadoc): Metamodel.HelpText {
             val visitor = ToHtmlStringCommentVisitor()
             javadoc.comment.visit(visitor)
-
-            val t = javadoc.other.stream()
-                .map(
-                    Function { it: OtherJavadoc? ->
-                    Metamodel.HelpTextEntry(
-                        it!!.name,
-                        it.comment.toString()
-                    )
-                }
-                )
-
-            val p = javadoc.seeAlso.stream().map(
-                Function { it: SeeAlsoJavadoc? ->
-                    Metamodel.HelpTextEntry(
-                        it!!.seeAlsoType.toString(),
-                        it.stringLiteral
-                    )
-                }
-            )
-
-            return Metamodel.HelpText(visitor.build(), Stream.concat(p, t).toList())
+            val t = javadoc.other.map {
+                Metamodel.HelpTextEntry(it.name, it.comment.toString())
+            }
+            val p = javadoc.seeAlso.map {
+                Metamodel.HelpTextEntry(it.seeAlsoType.toString(), it.stringLiteral)
+            }
+            return Metamodel.HelpText(visitor.build(), (p + t).toMutableList())
         }
 
         private fun callMethodName(
@@ -402,17 +326,17 @@ class ExtractMetaData : Runnable {
             userValue: String?,
             useSegment: Boolean
         ): String {
-            if (!useSegment) {
-                if (userValue == null || userValue.isBlank()) {
-                    return method
+            return if (!useSegment) {
+                if (userValue.isNullOrBlank()) {
+                    method
                 } else {
-                    return userValue
+                    userValue
                 }
             } else {
-                if (userValue == null || userValue.isBlank()) {
-                    return "$segment/$method"
+                if (userValue.isNullOrBlank()) {
+                    "$segment/$method"
                 } else {
-                    return "$segment/$userValue"
+                    "$segment/$userValue"
                 }
             }
         }
