@@ -21,7 +21,6 @@ import org.key_project.logic.Name;
 import org.key_project.prover.proof.rulefilter.TacletFilter;
 import org.key_project.prover.sequent.PosInOccurrence;
 import org.key_project.util.collection.ImmutableList;
-import org.key_project.util.collection.ImmutableSLList;
 import org.key_project.util.reflection.ClassLoaderUtil;
 
 import org.jspecify.annotations.NonNull;
@@ -142,7 +141,7 @@ public class TermActionUtil {
      */
     private static ImmutableList<TacletApp> removeRewrites(
             ImmutableList<TacletApp> list) {
-        ImmutableList<TacletApp> result = ImmutableSLList.nil();
+        ImmutableList<TacletApp> result = ImmutableList.nil();
         for (TacletApp tacletApp : list) {
             Taclet taclet = tacletApp.taclet();
             result = (taclet instanceof RewriteTaclet ? result : result.prepend(tacletApp));
