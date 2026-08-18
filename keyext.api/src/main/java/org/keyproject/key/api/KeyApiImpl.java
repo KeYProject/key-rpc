@@ -164,12 +164,12 @@ public final class KeyApiImpl implements KeyApi {
             var proof = data.find(proofId);
             var env = data.find(proofId.env());
             var script = ParsingFacade.parseScript(scriptLine);
-            var pe = new ProofScriptEngine(script);
+            var pe = new ProofScriptEngine(proof);
 
             try {
-                pe.execute((AbstractUserInterfaceControl) env.getProofControl(), proof);
+                pe.execute((AbstractUserInterfaceControl) env.getProofControl(), script);
                 return new MacroStatistic(proofId, scriptLine, -1, -1);
-            } catch (IOException | InterruptedException | ScriptException e) {
+            } catch (InterruptedException | ScriptException e) {
                 throw new RuntimeException(e);
             }
         });

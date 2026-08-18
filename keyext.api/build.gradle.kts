@@ -17,9 +17,9 @@ dependencies {
     }
 
     api(libs.lsp4j.jsonrpc)
-    implementation(libs.lsp4j.websocket.jakarta)
-    implementation(libs.jetty.websocket.javax.server)
-    implementation(libs.picocli)
+    api(libs.lsp4j.websocket.jakarta)
+    api(libs.jetty.websocket.javax.server)
+    api(libs.picocli)
     implementation(libs.guava)
     annotationProcessor(libs.therapi.runtime.javadoc.scribe)
     api(libs.therapi.runtime.javadoc)
