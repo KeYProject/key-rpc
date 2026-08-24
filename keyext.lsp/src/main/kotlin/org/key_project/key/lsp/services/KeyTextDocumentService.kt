@@ -1,12 +1,11 @@
 package org.key_project.key.lsp.services
 
 import com.google.common.cache.CacheBuilder
+import de.uka.ilkd.key.nparser.JavaKeYLexer
 import de.uka.ilkd.key.nparser.JavaKeYParser
 import de.uka.ilkd.key.nparser.ParsingFacade
 import de.uka.ilkd.key.util.parsing.SyntaxErrorReporter
 import de.uka.ilkd.key.util.parsing.SyntaxErrorReporter.SyntaxError
-import io.github.jmltoolkit.lsp.KeyLanguageServer
-import io.github.jmltoolkit.lsp.LOGGER
 import org.antlr.v4.runtime.ParserRuleContext
 import org.antlr.v4.runtime.Token
 import org.antlr.v4.runtime.tree.ParseTree
@@ -14,6 +13,8 @@ import org.antlr.v4.runtime.tree.TerminalNode
 import org.eclipse.lsp4j.*
 import org.eclipse.lsp4j.jsonrpc.messages.Either
 import org.eclipse.lsp4j.services.TextDocumentService
+import org.key_project.key.lsp.KeyLanguageServer
+import org.key_project.key.lsp.LOGGER
 import org.key_project.key.lsp.highlighting.KeyDocumentHighlighter
 import org.key_project.key.lsp.symbols.KeyCatchSymbols
 import org.key_project.key.lsp.symbols.asRange
@@ -31,7 +32,6 @@ import kotlin.math.max
 import kotlin.math.min
 
 private fun TerminalNode.parentSequence(): Sequence<ParseTree> = generateSequence(this as ParseTree) { it.parent }
-
 
 val org.key_project.util.parsing.Location.toRange: Range
     get() = Range(Position(position.line(), position.column()), Position(position.line(), position.column()))
@@ -54,7 +54,7 @@ class KeyTextDocumentService(val server: KeyLanguageServer) : TextDocumentServic
         .build<String, JavaKeYParser.FileContext>()
         .asMap()
 
-    fun getSync(uri: String): JavaKeYParser.FileContext? {
+    fun getSync(uri: String): JavaKeYParser.FileContext {
         if (uri !in fileCache) {
             load(uri)
         }
@@ -113,7 +113,10 @@ class KeyTextDocumentService(val server: KeyLanguageServer) : TextDocumentServic
         get(params.textDocument.uri)
             .thenApply { symbolicLocation(it, params.position) }
             .thenApply { describeAsHover(it) }
-            .exceptionally { null }
+            .exceptionally { e ->
+                LOGGER.warn("Error computing hover information", e)
+                null
+            }
 
     private tailrec fun symbolicLocation(ctx: ParserRuleContext, position: Position): TerminalNode {
         for (tree in ctx.children) {
@@ -164,7 +167,9 @@ class KeyTextDocumentService(val server: KeyLanguageServer) : TextDocumentServic
                             }
                         val p = signatures.indexOfFirst { it.parameters.size > pos }
                         SignatureHelp(signatures, max(0, pos), max(0, p))
-                    } else null
+                    } else {
+                        null
+                    }
                 } else {
                     null
                 }
@@ -300,12 +305,16 @@ class KeyTextDocumentService(val server: KeyLanguageServer) : TextDocumentServic
             }
 
     fun buildChangeSelectionChain(x: TerminalNode?): SelectionRange =
-        if (x == null) SelectionRange()
-        else {
+        if (x == null) {
+            SelectionRange()
+        } else {
             val parents = x.parentSequence().toList().foldRight(null as SelectionRange?) { tree, acc ->
                 val range = (tree as ParserRuleContext).asRange
-                if (range == acc?.range) acc
-                else SelectionRange(range, acc)
+                if (range == acc?.range) {
+                    acc
+                } else {
+                    SelectionRange(range, acc)
+                }
             }
             SelectionRange(x.symbol.asRange, parents)
         }
@@ -320,20 +329,63 @@ class KeyTextDocumentService(val server: KeyLanguageServer) : TextDocumentServic
         supplyAsync { (params.textDocument.uri).toPath().readText().substring(params.range.start, params.range.end) }
             .thenApplyAsync { KeyDocumentHighlighter().analyzeToken(it) }
     //endregion
+
+    //region Completion
+    override fun completion(params: CompletionParams): CompletableFuture<Either<List<CompletionItem>, CompletionList>> =
+        supplyAsync { params.textDocument.uri.toPath().readText() }
+            .thenApply<Either<List<CompletionItem>, CompletionList>> {
+                var prefix = ""
+                val index = it.indexOf(params.position)
+                if (index >= 0) {
+                    val delim = it.lastIndexOfAny(" \n\t".toCharArray(), index)
+                    prefix = it.substring(delim, index)
+                }
+                Either.forLeft(getEscapeKeywords(prefix))
+
+                // val tokens = ParsingFacade.createLexer(CharStreams.fromString(it)).allTokens
+                // val completions = mutableListOf<CompletionItem>()
+                // Add keyword completions based on parser context
+                // completions.addAll(getKeywordCompletions(contextNode))
+
+                // Add symbol completions from the parsed AST
+                // completions.addAll(getSymbolCompletions(file))
+                // Either.forLeft(listOf())
+            }
+            .exceptionally {
+                LOGGER.warn("Error computing completions", it)
+                Either.forLeft(listOf())
+            }
+
+    private fun getEscapeKeywords(prefix: String): List<CompletionItem> =
+        (0..JavaKeYLexer.VOCABULARY.maxTokenType).asSequence()
+            .mapNotNull { JavaKeYLexer.VOCABULARY.getLiteralName(it) }
+            .filter { it.startsWith(prefix) }
+            .toSortedSet()
+            .map { CompletionItem(it) }
+    //endregion
 }
 
-fun String.toPath(): Path {
-    return if (startsWith("jar:file:")) {
-        IOUtil.openFileInJar(URI.create(this))
-    } else {
-        Paths.get(this)
+private fun String.indexOf(position: Position): Int {
+    var currentLine = 0
+    for ((index, ch) in withIndex()) {
+        if (ch == '\n') currentLine++
+        if (position.line == currentLine) {
+            return index + position.character
+        }
     }
+    return -1
+}
+
+fun String.toPath(): Path = if (startsWith("jar:file:")) {
+    IOUtil.openFileInJar(URI.create(this))
+} else {
+    Paths.get(this)
 }
 
 private fun String.substring(startIndex: Position, endIndex: Position): String {
-    var start: Int = -1;
+    var start: Int = -1
     var end: Int = -1
-    var currentLine = 0;
+    var currentLine = 0
     for ((index, ch) in this.withIndex()) {
         if (ch == '\n') currentLine++
         if (startIndex.line == currentLine) {
@@ -365,7 +417,6 @@ private operator fun Pair<Int, Int>.compareTo(o: Pair<Int, Int>): Int {
     return b - y
 }
 
-
 private operator fun Token.compareTo(position: Position): Int =
     (line to charPositionInLine).compareTo(position.line to position.character)
 
@@ -374,5 +425,3 @@ private operator fun Position.compareTo(tok: Token): Int {
     if (x != 0) return x
     return character - tok.charPositionInLine
 }
-
-

@@ -10,17 +10,15 @@ class CodeLensVisitor(val params: CodeLensParams) : JavaKeYParserBaseVisitor<Lis
     override fun aggregateResult(
         aggregate: List<CodeLens>?,
         nextResult: List<CodeLens>?
-    ): List<CodeLens>? {
-        return if (aggregate == null) nextResult
-        else if (nextResult == null) aggregate
-        else aggregate + nextResult
+    ): List<CodeLens>? = if (aggregate == null) {
+        nextResult
+    } else if (nextResult == null) {
+        aggregate
+    } else {
+        aggregate + nextResult
     }
 
-    override fun visitPreferences(ctx: JavaKeYParser.PreferencesContext?): List<CodeLens> {
-        return listOf()
-    }
+    override fun visitPreferences(ctx: JavaKeYParser.PreferencesContext?): List<CodeLens> = listOf()
 
-    override fun visitProblem(ctx: JavaKeYParser.ProblemContext): List<CodeLens> {
-        return listOf(StartKey().createCodeLens(ctx, params.textDocument.uri))
-    }
+    override fun visitProblem(ctx: JavaKeYParser.ProblemContext): List<CodeLens> = listOf(StartKey().createCodeLens(ctx, params.textDocument.uri))
 }

@@ -27,6 +27,7 @@ lsp4j-websocket-jakarta = { module = "org.eclipse.lsp4j:org.eclipse.lsp4j.websoc
 jetty-websocket-javax-server = { module = "org.eclipse.jetty.websocket:websocket-javax-server", version.ref = "jetty-websocket" }
 picocli = { module = "info.picocli:picocli", version.ref = "picocli" }
 guava = { module = "com.google.guava:guava", version.ref = "guava" }
+auto-service = { module = "com.google.auto.service:auto-service", version = "1.1.1" }
 therapi-runtime-javadoc-scribe = { module = "com.github.therapi:therapi-runtime-javadoc-scribe", version.ref = "therapi" }
 therapi-runtime-javadoc = { module = "com.github.therapi:therapi-runtime-javadoc", version.ref = "therapi" }
 clickt = { module = "com.github.ajalt.clikt:clikt", version = "5.1.0" }

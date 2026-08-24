@@ -68,13 +68,11 @@ class KeyCatchSymbols : JavaKeYParserBaseVisitor<List<DocumentSymbol>?>() {
     override fun visitPreferences(ctx: JavaKeYParser.PreferencesContext): List<DocumentSymbol> =
         symbol("Preferences", SymbolKind.String, ctx.KEYSETTINGS().symbol.asRange, ctx.asRange, ctx.text)
 
-    override fun visitFunc_decls(ctx: JavaKeYParser.Func_declsContext): List<DocumentSymbol> {
-        return symbol(
+    override fun visitFunc_decls(ctx: JavaKeYParser.Func_declsContext): List<DocumentSymbol> = symbol(
             "Functions", SymbolKind.Function,
             ctx.start.asRange, Range(), null,
             acceptAll(ctx.func_decl())
         )
-    }
 
     override fun visitFunc_decl(ctx: JavaKeYParser.Func_declContext): List<DocumentSymbol> {
         declaredFunctions.add(FunctionSignature.from(ctx))
@@ -111,5 +109,4 @@ data class FunctionSignature(
             )
         }
     }
-
 }

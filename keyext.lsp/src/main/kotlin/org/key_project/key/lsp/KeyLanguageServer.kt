@@ -2,7 +2,7 @@
  * jmltk is licensed under the Lesser GNU General Public License Version 2 and Apache License
  * SPDX-License-Identifier: LGPL-3.0-or-later Apache-2.0
  */
-package io.github.jmltoolkit.lsp
+package org.key_project.key.lsp
 
 import de.uka.ilkd.key.util.KeYConstants
 import org.eclipse.lsp4j.*
@@ -21,6 +21,21 @@ import java.util.concurrent.ForkJoinPool
 import java.util.concurrent.TimeUnit
 import kotlin.system.exitProcess
 
+/**
+ * Language Server implementation for KeY files.
+ *
+ * Provides LSP features including:
+ * - Semantic highlighting
+ * - Document symbols
+ * - Code lenses
+ * - Hover information
+ * - Completion providers
+ * - Workspace diagnostics
+ * - Command execution
+ *
+ * @author Alexander Weigl
+ * @version 1.0
+ */
 class KeyLanguageServer :
     LanguageServer,
     LanguageClientAware {
@@ -36,6 +51,13 @@ class KeyLanguageServer :
     internal val capabilities: ClientCapabilities
         get() = initParams.capabilities
 
+    /**
+     * Loads LSP actions via ServiceLoader pattern.
+     *
+     * Extensions can register custom actions by implementing [LspAction] interface
+     * and adding a META-INF/services/org.key_project.key.lsp.actions.LspAction file
+     * with the fully qualified class name.
+     */
     internal val actions by lazy {
         ServiceLoader.load(LspAction::class.java).toList()
     }
@@ -43,39 +65,31 @@ class KeyLanguageServer :
     override fun initialize(params: InitializeParams): CompletableFuture<InitializeResult> {
         initParams = params
         val capabilities = ServerCapabilities()
-        capabilities.setTextDocumentSync(TextDocumentSyncKind.Full)
-        capabilities.diagnosticProvider = DiagnosticRegistrationOptions(true, false)
-        capabilities.setDocumentSymbolProvider(true)
 
-        //capabilities.setWorkspaceSymbolProvider(true)
+        capabilities.setHoverProvider(true)
+        capabilities.signatureHelpProvider = SignatureHelpOptions(listOf("<", "("), listOf("<", "(", ","))
+        capabilities.foldingRangeProvider = Either.forRight(FoldingRangeProviderOptions("KeY"))
+        capabilities.diagnosticProvider = DiagnosticRegistrationOptions(false, true)
+        capabilities.setDocumentSymbolProvider(true)
         capabilities.setDeclarationProvider(DeclarationRegistrationOptions("KeY"))
 
-        // capabilities.signatureHelpProvider = SignatureHelpOptions()
-        capabilities.setHoverProvider(true)
+        capabilities.setCodeActionProvider(CodeActionOptions(listOf("key")))
+        capabilities.executeCommandProvider = ExecuteCommandOptions(actions.map { it.id })
+        capabilities.codeLensProvider = CodeLensOptions(true)
+        capabilities.selectionRangeProvider = Either.forRight(SelectionRangeRegistrationOptions("KeY"))
 
-        // capabilities.setDocumentFormattingProvider(true)
-        capabilities.foldingRangeProvider = null
-
-        // capabilities.codeLensProvider = CodeLensOptions(false)
-        capabilities.setSelectionRangeProvider(true)
-
-        // capabilities.setDefinitionProvider(true)
-        // capabilities.setDocumentHighlightProvider(true)
-        capabilities.completionProvider = CompletionOptions(true, listOf(",", "(", ")", "<", ">"))
-
+        capabilities.setTextDocumentSync(TextDocumentSyncKind.Full)
+        capabilities.completionProvider = CompletionOptions(true, listOf(",", "(", ")", "<", ">", "\\"))
         capabilities.semanticTokensProvider = SemanticTokensWithRegistrationOptions(
             LEGEND, SemanticTokensServerFull(false), false,
             listOf(
                 DocumentFilter("key", "file", Either.forLeft("**/*.key")),
             )
         )
-
-        capabilities.setCodeActionProvider(CodeActionOptions(listOf("validity", "key")))
-        capabilities.executeCommandProvider = ExecuteCommandOptions(actions.map { it.id })
-
         return CompletableFuture.completedFuture(
             InitializeResult(
-                capabilities, ServerInfo(
+                capabilities,
+                    ServerInfo(
                     "key-lsp",
                     "using${KeYConstants.VERSION} (${KeYConstants.INTERNAL_VERSION})"
                 )
@@ -110,4 +124,4 @@ class KeyLanguageServer :
     }
 }
 
-val LOGGER = LoggerFactory.getLogger("lsp")
+internal val LOGGER = LoggerFactory.getLogger("key-lsp")

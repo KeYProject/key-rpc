@@ -13,7 +13,7 @@ dependencies {
     implementation(libs.jetty.websocket.javax.server)
     implementation(libs.picocli)
     implementation(libs.guava)
-    implementation("com.google.auto.service:auto-service:1.0-rc5")
+    implementation(libs.auto.service)
     implementation(libs.clickt)
 
     annotationProcessor(libs.therapi.runtime.javadoc.scribe)
@@ -26,6 +26,7 @@ dependencies {
 tasks.named<JavaCompile>("compileJava") {
     options.compilerArgs.add("-parameters") // for having parameter name in reflection
 }
+
 repositories {
     mavenCentral()
 }

@@ -1,7 +1,7 @@
 package org.key_project.key.lsp.services
 
 import de.uka.ilkd.key.util.parsing.SyntaxErrorReporter
-import io.github.jmltoolkit.lsp.KeyLanguageServer
+import org.key_project.key.lsp.KeyLanguageServer
 import org.eclipse.lsp4j.*
 import org.eclipse.lsp4j.jsonrpc.messages.Either
 import org.eclipse.lsp4j.services.WorkspaceService
@@ -16,7 +16,7 @@ import kotlin.io.path.walk
 
 val Path.asUri: String
     get() {
-        if(FileSystems.getDefault() != this.fileSystem) {
+        if (FileSystems.getDefault() != this.fileSystem) {
             return toUri().toString()
         }
         return "file://${this.absolutePathString()}"
@@ -87,13 +87,13 @@ class KeyWorkspaceService(val server: KeyLanguageServer) : WorkspaceService {
                     WorkspaceSymbol(
                         it.name, it.kind, Either.forLeft(Location(uri, it.range)),
                     )
-                }?:listOf()
+                } ?: listOf()
             }
 
     private fun findKeyFiles(): CompletableFuture<Sequence<Path>> =
         CompletableFuture.supplyAsync {
             keyStandardFiles +
-                server.initParams.workspaceFolders.asSequence()
+                (server.initParams.workspaceFolders?.asSequence() ?: emptySequence())
                     .map { it.uri.toPath() }
                     .flatMap { it.walk().filter { it.extension == "key" } }
         }
