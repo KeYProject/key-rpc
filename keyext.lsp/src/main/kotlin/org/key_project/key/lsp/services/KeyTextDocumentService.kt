@@ -43,7 +43,7 @@ class KeyTextDocumentService(val server: KeyLanguageServer) : TextDocumentServic
         .expireAfterAccess(Duration.ofMinutes(1))
         .maximumSize(250)
         .initialCapacity(25)
-        .build<String, List<SyntaxError>>()
+        .build<String, Exception>()
         .asMap()
 
     val fileCache = CacheBuilder.newBuilder()
@@ -58,7 +58,7 @@ class KeyTextDocumentService(val server: KeyLanguageServer) : TextDocumentServic
         if (uri !in fileCache) {
             load(uri)
         }
-        return fileCache[uri]!!
+        return fileCache[uri] ?: throw fileErrors[uri]!!
     }
 
     fun get(uri: String): CompletableFuture<JavaKeYParser.FileContext> = supplyAsync {
@@ -69,13 +69,9 @@ class KeyTextDocumentService(val server: KeyLanguageServer) : TextDocumentServic
         val path = uri.toPath()
         val ctx =
             try {
-                if (path.exists()) {
-                    ParsingFacade.parseFile(path)
-                } else {
-                    return null
-                }
-            } catch (e: SyntaxErrorReporter.ParserException) {
-                fileErrors[uri] = e.errors
+                ParsingFacade.parseFile(path)
+            } catch (e: Exception) {
+                fileErrors[uri] = e
                 throw e
             }
 
@@ -262,9 +258,13 @@ class KeyTextDocumentService(val server: KeyLanguageServer) : TextDocumentServic
     // region documentSymbol
     override fun documentSymbol(params: DocumentSymbolParams): CompletableFuture<List<Either<SymbolInformation, DocumentSymbol>>> =
         get(params.textDocument.uri)
-            .thenApplyAsync {
+            .thenApplyAsync<List<Either<SymbolInformation, DocumentSymbol>>> {
                 val v = KeyCatchSymbols()
                 it.accept(v)?.map { Either.forRight(it) } ?: listOf()
+            }
+            .exceptionally {
+                LOGGER.error("Error in documentSymbol", it)
+                listOf()
             }
     //endregion
 
@@ -337,7 +337,7 @@ class KeyTextDocumentService(val server: KeyLanguageServer) : TextDocumentServic
                 var prefix = ""
                 val index = it.indexOf(params.position)
                 if (index >= 0) {
-                    val delim = it.lastIndexOfAny(" \n\t".toCharArray(), index)
+                    val delim = max(index, it.lastIndexOfAny(" \n\t".toCharArray(), index))
                     prefix = it.substring(delim, index)
                 }
                 Either.forLeft(getEscapeKeywords(prefix))
@@ -379,7 +379,7 @@ private fun String.indexOf(position: Position): Int {
 fun String.toPath(): Path = if (startsWith("jar:file:")) {
     IOUtil.openFileInJar(URI.create(this))
 } else {
-    Paths.get(this)
+    Paths.get(this.replace("file://", ""))
 }
 
 private fun String.substring(startIndex: Position, endIndex: Position): String {
