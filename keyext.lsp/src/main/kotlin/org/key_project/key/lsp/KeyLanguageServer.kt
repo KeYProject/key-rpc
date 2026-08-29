@@ -64,12 +64,18 @@ class KeyLanguageServer :
 
     override fun initialize(params: InitializeParams): CompletableFuture<InitializeResult> {
         initParams = params
-        val capabilities = ServerCapabilities()
+        val keyFiles = DocumentFilter("key", "file", Either.forLeft("**/*.key"))
+        val keyFilesJar = DocumentFilter("key", "jar:file", Either.forLeft("**/*.key"))
 
+        val capabilities = ServerCapabilities()
         capabilities.setHoverProvider(true)
         capabilities.signatureHelpProvider = SignatureHelpOptions(listOf("<", "("), listOf("<", "(", ","))
         capabilities.foldingRangeProvider = Either.forRight(FoldingRangeProviderOptions("KeY"))
-        capabilities.diagnosticProvider = DiagnosticRegistrationOptions(false, true)
+        capabilities.diagnosticProvider = DiagnosticRegistrationOptions(false, true).also {
+            it.identifier = "key-lsp"
+            it.documentSelector = listOf(keyFiles, keyFilesJar)
+        }
+
         capabilities.setDocumentSymbolProvider(true)
         capabilities.setDeclarationProvider(DeclarationRegistrationOptions("KeY"))
 
@@ -80,16 +86,42 @@ class KeyLanguageServer :
 
         capabilities.setTextDocumentSync(TextDocumentSyncKind.Full)
         capabilities.completionProvider = CompletionOptions(true, listOf(",", "(", ")", "<", ">", "\\"))
+
         capabilities.semanticTokensProvider = SemanticTokensWithRegistrationOptions(
-            LEGEND, SemanticTokensServerFull(false), false,
+            LEGEND, SemanticTokensServerFull(true), false,
             listOf(
-                DocumentFilter("key", "file", Either.forLeft("**/*.key")),
+                keyFiles, keyFilesJar
             )
         )
+        capabilities.semanticTokensProvider.id = "key-lsp"
+        capabilities.semanticTokensProvider.range = Either.forLeft(true)
+
+        capabilities.documentOnTypeFormattingProvider = null
+
+        capabilities.setDocumentFormattingProvider(true)
+        capabilities.setDocumentRangeFormattingProvider(true)
+        capabilities.documentLinkProvider = DocumentLinkOptions(false)
+
+        capabilities.setWorkspaceSymbolProvider(true)
+
+        capabilities.textDocument = TextDocumentServerCapabilities()
+        capabilities.textDocument.diagnostic = DiagnosticServerCapabilities().also { it.markupMessageSupport = true }
+
+        capabilities.workspace = WorkspaceServerCapabilities()
+        capabilities.workspace.workspaceFolders = WorkspaceFoldersOptions().also {
+            it.supported = true
+            it.changeNotifications = Either.forRight(true)
+        }
+
+        capabilities.workspace.textDocumentContent = TextDocumentContentRegistrationOptions(
+            listOf("jar:file")
+        )
+
+
         return CompletableFuture.completedFuture(
             InitializeResult(
                 capabilities,
-                    ServerInfo(
+                ServerInfo(
                     "key-lsp",
                     "using${KeYConstants.VERSION} (${KeYConstants.INTERNAL_VERSION})"
                 )
@@ -107,10 +139,6 @@ class KeyLanguageServer :
     override fun exit() {
         shutdown()
         exitProcess(0)
-    }
-
-    override fun initialized() {
-        super.initialized()
     }
 
     override fun getNotebookDocumentService(): NotebookDocumentService = keyNotebookDocumentServices

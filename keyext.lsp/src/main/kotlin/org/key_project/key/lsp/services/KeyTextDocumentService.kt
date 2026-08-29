@@ -5,14 +5,16 @@ import de.uka.ilkd.key.nparser.JavaKeYLexer
 import de.uka.ilkd.key.nparser.JavaKeYParser
 import de.uka.ilkd.key.nparser.ParsingFacade
 import de.uka.ilkd.key.util.parsing.SyntaxErrorReporter
-import de.uka.ilkd.key.util.parsing.SyntaxErrorReporter.SyntaxError
+import org.antlr.v4.runtime.CharStreams
 import org.antlr.v4.runtime.ParserRuleContext
 import org.antlr.v4.runtime.Token
+import org.antlr.v4.runtime.misc.ParseCancellationException
 import org.antlr.v4.runtime.tree.ParseTree
 import org.antlr.v4.runtime.tree.TerminalNode
 import org.eclipse.lsp4j.*
 import org.eclipse.lsp4j.jsonrpc.messages.Either
 import org.eclipse.lsp4j.services.TextDocumentService
+import org.key_project.key.lsp.Formatter
 import org.key_project.key.lsp.KeyLanguageServer
 import org.key_project.key.lsp.LOGGER
 import org.key_project.key.lsp.highlighting.KeyDocumentHighlighter
@@ -26,7 +28,6 @@ import java.time.Duration
 import java.util.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.CompletableFuture.supplyAsync
-import kotlin.io.path.exists
 import kotlin.io.path.readText
 import kotlin.math.max
 import kotlin.math.min
@@ -34,7 +35,7 @@ import kotlin.math.min
 private fun TerminalNode.parentSequence(): Sequence<ParseTree> = generateSequence(this as ParseTree) { it.parent }
 
 val org.key_project.util.parsing.Location.toRange: Range
-    get() = Range(Position(position.line(), position.column()), Position(position.line(), position.column()))
+    get() = Range(Position(position.line() + 1, position.column()), Position(position.line() + 1, position.column()))
 
 class KeyTextDocumentService(val server: KeyLanguageServer) : TextDocumentService {
     // region file management
@@ -62,22 +63,34 @@ class KeyTextDocumentService(val server: KeyLanguageServer) : TextDocumentServic
     }
 
     fun get(uri: String): CompletableFuture<JavaKeYParser.FileContext> = supplyAsync {
-        getSync(uri)
+        try {
+            getSync(uri)
+        } catch (e: SyntaxErrorReporter.ParserException) {
+            server.client.publishDiagnostics(
+                PublishDiagnosticsParams(uri, e.toDiagnostics())
+            )
+            throw e
+        } catch (e: ParseCancellationException) {
+            server.client.publishDiagnostics(
+                PublishDiagnosticsParams(uri, e.toDiagnostics())
+            )
+            throw e
+        }
     }
 
     private fun load(uri: String): JavaKeYParser.FileContext? {
         val path = uri.toPath()
-        val ctx =
-            try {
-                ParsingFacade.parseFile(path)
-            } catch (e: Exception) {
-                fileErrors[uri] = e
-                throw e
-            }
-
-        val c = ParsingFacade.getParseRuleContext(ctx)
-        fileCache[uri] = c
-        return c
+        try {
+            val p = ParsingFacade.createParser(CharStreams.fromPath(path))
+            val ctx = p.file()
+            p.errorReporter.throwException()
+            fileErrors.remove(uri)
+            fileCache[uri] = ctx
+            return ctx
+        } catch (e: SyntaxErrorReporter.ParserException) {
+            fileErrors[uri] = e
+            throw e
+        }
     }
 
     private fun invalidate(uri: String) {
@@ -102,7 +115,7 @@ class KeyTextDocumentService(val server: KeyLanguageServer) : TextDocumentServic
         getSync(params.textDocument.uri)
     }
 
-    //endregion
+//endregion
 
     //region Hover
     override fun hover(params: HoverParams): CompletableFuture<Hover?> =
@@ -173,7 +186,7 @@ class KeyTextDocumentService(val server: KeyLanguageServer) : TextDocumentServic
                 LOGGER.info("", it)
                 null
             }
-    //endregion
+//endregion
 
     //region Folding
     private val rulesOfFoldingInterests = mutableMapOf<Class<*>, (ParserRuleContext) -> String?>()
@@ -230,7 +243,7 @@ class KeyTextDocumentService(val server: KeyLanguageServer) : TextDocumentServic
                 LOGGER.error("Error in finding folding ranges", e)
                 listOf()
             }
-    //endregion
+//endregion
 
     //region diagnostics
     override fun diagnostic(params: DocumentDiagnosticParams): CompletableFuture<DocumentDiagnosticReport> =
@@ -239,34 +252,26 @@ class KeyTextDocumentService(val server: KeyLanguageServer) : TextDocumentServic
                 DocumentDiagnosticReport(RelatedFullDocumentDiagnosticReport())
             }
             .exceptionally { e ->
-                var items = mutableListOf<Diagnostic>()
+                var items = listOf<Diagnostic>()
                 if (e is SyntaxErrorReporter.ParserException) {
-                    items = e.errors.map {
-                        Diagnostic(
-                            it.location.toRange,
-                            it.message,
-                            DiagnosticSeverity.Error,
-                            "KeY-Parser"
-                        )
-                    }
-                        .toMutableList()
+                    items = e.toDiagnostics()
                 }
                 DocumentDiagnosticReport(RelatedFullDocumentDiagnosticReport(items))
             }
-    //endregion
+//endregion
 
     // region documentSymbol
     override fun documentSymbol(params: DocumentSymbolParams): CompletableFuture<List<Either<SymbolInformation, DocumentSymbol>>> =
         get(params.textDocument.uri)
             .thenApplyAsync<List<Either<SymbolInformation, DocumentSymbol>>> {
                 val v = KeyCatchSymbols()
-                it.accept(v)?.map { Either.forRight(it) } ?: listOf()
+                it.accept(v)?.map { symbol -> Either.forRight(symbol) } ?: listOf()
             }
             .exceptionally {
                 LOGGER.error("Error in documentSymbol", it)
                 listOf()
             }
-    //endregion
+//endregion
 
     // region Declaration
     override fun declaration(params: DeclarationParams): CompletableFuture<Either<List<Location>, List<LocationLink>>> =
@@ -278,17 +283,20 @@ class KeyTextDocumentService(val server: KeyLanguageServer) : TextDocumentServic
                 val symbols = it.accept(v)?.filter { it.name == tn.symbol.text } ?: listOf()
                 Either.forLeft(symbols.map { Location(params.textDocument.uri, it.selectionRange) })
             }
-    // endregion
+// endregion
 
     //region Actions
     override fun codeAction(params: CodeActionParams): CompletableFuture<List<Either<Command, CodeAction>>> =
         get(params.textDocument.uri)
             .thenApplyAsync { it.accept(CodeActionVisitor(params.range)) ?: listOf() }
-            .thenApply { it.map { it: Command -> Either.forLeft(it) } }
+            .thenApply<List<Either<Command, CodeAction>>> { it.map { it: Command -> Either.forLeft(it) } }
+            .exceptionally {
+                listOf()
+            }
 
     override fun codeLens(params: CodeLensParams): CompletableFuture<List<CodeLens>> =
         get(params.textDocument.uri).thenApplyAsync { it.accept(CodeLensVisitor(params)) ?: listOf() }
-    //endregion
+//endregion
 
     //region Selection Range
     override fun selectionRange(params: SelectionRangeParams): CompletableFuture<List<SelectionRange>> =
@@ -318,7 +326,7 @@ class KeyTextDocumentService(val server: KeyLanguageServer) : TextDocumentServic
             }
             SelectionRange(x.symbol.asRange, parents)
         }
-    //endregion
+//endregion
 
     //region Semantic Tokens
     override fun semanticTokensFull(params: SemanticTokensParams): CompletableFuture<SemanticTokens> =
@@ -328,7 +336,7 @@ class KeyTextDocumentService(val server: KeyLanguageServer) : TextDocumentServic
     override fun semanticTokensRange(params: SemanticTokensRangeParams): CompletableFuture<SemanticTokens> =
         supplyAsync { (params.textDocument.uri).toPath().readText().substring(params.range.start, params.range.end) }
             .thenApplyAsync { KeyDocumentHighlighter().analyzeToken(it) }
-    //endregion
+//endregion
 
     //region Completion
     override fun completion(params: CompletionParams): CompletableFuture<Either<List<CompletionItem>, CompletionList>> =
@@ -340,32 +348,126 @@ class KeyTextDocumentService(val server: KeyLanguageServer) : TextDocumentServic
                     val delim = max(index, it.lastIndexOfAny(" \n\t".toCharArray(), index))
                     prefix = it.substring(delim, index)
                 }
-                Either.forLeft(getEscapeKeywords(prefix))
-
-                // val tokens = ParsingFacade.createLexer(CharStreams.fromString(it)).allTokens
-                // val completions = mutableListOf<CompletionItem>()
-                // Add keyword completions based on parser context
-                // completions.addAll(getKeywordCompletions(contextNode))
-
-                // Add symbol completions from the parsed AST
-                // completions.addAll(getSymbolCompletions(file))
-                // Either.forLeft(listOf())
+                Either.forLeft(
+                    getEscapeKeywords(prefix) + usedIdentifier(prefix, params.textDocument.uri)
+                )
             }
             .exceptionally {
                 LOGGER.warn("Error computing completions", it)
                 Either.forLeft(listOf())
             }
 
+    private fun usedIdentifier(prefix: String, uri: String): List<CompletionItem> =
+        ParsingFacade.createLexer(uri.toPath()).asSequence()
+            .filter { it.type == JavaKeYLexer.IDENT }
+            .map { it.text }
+            .filter { it.startsWith(prefix) }
+            .toSortedSet()
+            .map { CompletionItem(it).also { it.kind = CompletionItemKind.Variable } }
+            .toList()
+
     private fun getEscapeKeywords(prefix: String): List<CompletionItem> =
         (0..JavaKeYLexer.VOCABULARY.maxTokenType).asSequence()
             .mapNotNull { JavaKeYLexer.VOCABULARY.getLiteralName(it) }
             .filter { it.startsWith(prefix) }
+            .map { it.trim('\'') }
             .toSortedSet()
-            .map { CompletionItem(it) }
+            .map { CompletionItem(it).also { it.kind = CompletionItemKind.Keyword } }
     //endregion
+
+    //region Format
+    override fun formatting(params: DocumentFormattingParams): CompletableFuture<List<TextEdit>> {
+        val path = params.textDocument.uri.toPath()
+        return supplyAsync { Formatter().format(path) }
+            .thenApplyAsync {
+                val original = path.readText()
+                listOf(TextEdit(Range(Position(0, 0), original.findLastPosition()), it))
+            }
+    }
+
+    override fun rangeFormatting(params: DocumentRangeFormattingParams) = supplyAsync {
+        val path = params.textDocument.uri.toPath()
+        val original = path.readText()
+        val section = original.substring(params.range)
+        val it = Formatter().format(section)
+        listOf(TextEdit(params.range, it))
+    }
+
+    override fun rangesFormatting(params: DocumentRangesFormattingParams): CompletableFuture<List<TextEdit>> =
+        supplyAsync {
+            val path = params.textDocument.uri.toPath()
+            val original = path.readText()
+            params.ranges.map { r ->
+                val section = original.substring(r)
+                val it = Formatter().format(section)
+                TextEdit(r, it)
+            }
+        }
+//endregion
+
+    //region documentLink
+    override fun documentLink(params: DocumentLinkParams): CompletableFuture<List<DocumentLink>> =
+        get(params.textDocument.uri)
+            .thenApply { file ->
+                val base = params.textDocument.uri.toPath()
+                file.decls().one_include_statement().flatMap { include ->
+                    include.one_include().map {
+                        var s = it.text.trim('"')
+                        if (!s.endsWith(".key")) s += ".key"
+                        val path = base.parent.resolve(s)
+                        DocumentLink(it.asRange, path.asUri)
+                    }
+                }
+            }
+//endregion
+
+
+    override fun documentHighlight(params: DocumentHighlightParams): CompletableFuture<List<DocumentHighlight>> =
+        CompletableFuture.completedFuture(listOf<DocumentHighlight>())
 }
 
-private fun String.indexOf(position: Position): Int {
+private fun JavaKeYLexer.asSequence(): Sequence<Token> {
+    return sequence {
+        var token: Token
+        do {
+            token = nextToken()
+            yield(token)
+        } while (token.type != JavaKeYLexer.EOF)
+    }
+}
+
+internal fun SyntaxErrorReporter.ParserException.toDiagnostics(): List<Diagnostic> = errors.map {
+    Diagnostic(
+        it.location.toRange,
+        it.message,
+        DiagnosticSeverity.Error,
+        "KeY-Parser"
+    )
+}
+
+private fun ParseCancellationException.toDiagnostics(): List<Diagnostic> = listOf(
+    Diagnostic(
+        Range(Position(0, 0), Position(0, 0)), // TODO
+        message ?: (" " + this),
+        DiagnosticSeverity.Error,
+        "KeY-Parser"
+    )
+)
+
+
+internal fun String.substring(range: Range) = substring(range.start, range.end)
+
+internal fun String.findLastPosition(): Position {
+    val line = count { it == '\n' }
+    val column = if (line == 0) {
+        length
+    } else {
+        length - lastIndexOf('\n')
+    }
+    return Position(line, column)
+}
+
+internal fun String.indexOf(position: Position): Int {
     var currentLine = 0
     for ((index, ch) in withIndex()) {
         if (ch == '\n') currentLine++
@@ -382,7 +484,7 @@ fun String.toPath(): Path = if (startsWith("jar:file:")) {
     Paths.get(this.replace("file://", ""))
 }
 
-private fun String.substring(startIndex: Position, endIndex: Position): String {
+internal fun String.substring(startIndex: Position, endIndex: Position): String {
     var start: Int = -1
     var end: Int = -1
     var currentLine = 0
@@ -399,14 +501,14 @@ private fun String.substring(startIndex: Position, endIndex: Position): String {
     return substring(min(start, end), max(start, end))
 }
 
-private operator fun ParseTree.contains(position: Position): Boolean =
+internal operator fun ParseTree.contains(position: Position): Boolean =
     when (this) {
         is ParserRuleContext -> start <= position && position <= stop
         is TerminalNode -> symbol <= position && position <= symbol
         else -> false
     }
 
-private operator fun Pair<Int, Int>.compareTo(o: Pair<Int, Int>): Int {
+internal operator fun Pair<Int, Int>.compareTo(o: Pair<Int, Int>): Int {
     val (a, b) = this
     val (x, y) = o
 
@@ -417,10 +519,10 @@ private operator fun Pair<Int, Int>.compareTo(o: Pair<Int, Int>): Int {
     return b - y
 }
 
-private operator fun Token.compareTo(position: Position): Int =
+internal operator fun Token.compareTo(position: Position): Int =
     (line to charPositionInLine).compareTo(position.line to position.character)
 
-private operator fun Position.compareTo(tok: Token): Int {
+internal operator fun Position.compareTo(tok: Token): Int {
     val x = line - tok.line
     if (x != 0) return x
     return character - tok.charPositionInLine

@@ -2,13 +2,11 @@ package org.key_project.key.lsp.services
 
 import de.uka.ilkd.key.nparser.JavaKeYParser
 import de.uka.ilkd.key.util.parsing.SyntaxErrorReporter
-import org.antlr.v4.runtime.misc.ParseCancellationException
 import org.eclipse.lsp4j.*
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import org.key_project.key.lsp.KeyLanguageServer
 import org.key_project.key.lsp.highlighting.KeyDocumentHighlighter
-import java.io.FileNotFoundException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -16,6 +14,18 @@ import kotlin.io.path.absolute
 import kotlin.io.path.readText
 
 val workspace = Paths.get("workspace").absolute()
+
+fun createServer(): KeyLanguageServer {
+    val server = KeyLanguageServer()
+    server.initialize(
+        InitializeParams().also {
+            it.workspaceFolders = listOf()
+            it.rootUri = "file:///tmp"
+            it.rootPath = "/tmp"
+        }
+    )
+    return server
+}
 
 class KeyTextDocumentServiceTest {
 
@@ -25,17 +35,6 @@ class KeyTextDocumentServiceTest {
      */
     private fun getWorkspaceFile(path: String): Path = workspace.resolve(path)
 
-    private fun createServer(): KeyLanguageServer {
-        val server = KeyLanguageServer()
-        server.initialize(
-            InitializeParams().also {
-            it.workspaceFolders = listOf()
-            it.rootUri = "file:///tmp"
-            it.rootPath = "/tmp"
-        }
-        )
-        return server
-    }
 
     // region File Management Tests
     @Test
@@ -53,7 +52,7 @@ class KeyTextDocumentServiceTest {
         val server = createServer()
         val file = getWorkspaceFile("diagnostics/invalid_missing_brace.key")
 
-        assertThrows(ParseCancellationException::class.java) {
+        assertThrows(SyntaxErrorReporter.ParserException::class.java) {
             server.keyTextDocumentService.getSync(file.asUri)
         }
     }
@@ -78,11 +77,11 @@ class KeyTextDocumentServiceTest {
 
         val params = DidOpenTextDocumentParams(
             TextDocumentItem(
-            file.asUri,
-            "key",
-            1,
-            Files.readString(file)
-        )
+                file.asUri,
+                "key",
+                1,
+                Files.readString(file)
+            )
         )
 
         server.keyTextDocumentService.didOpen(params)
@@ -258,6 +257,29 @@ class KeyTextDocumentServiceTest {
         assertNotNull(report)
     }
     // endregion
+
+
+    @Test
+    fun testCodeLens() {
+        val server = createServer()
+        val file = getWorkspaceFile("complex.key")
+        val params = CodeLensParams(TextDocumentIdentifier(file.asUri))
+        val report = server.keyTextDocumentService.codeLens(params).get()
+        println(report)
+        assertNotNull(report)
+        assertTrue(report.isNotEmpty())
+    }
+
+    @Test
+    fun testDocumentSymbol() {
+        val server = createServer()
+        val file = getWorkspaceFile("complex.key")
+        val params = DocumentSymbolParams(TextDocumentIdentifier(file.asUri))
+        val report = server.keyTextDocumentService.documentSymbol(params).get()
+        println(report)
+        assertNotNull(report)
+        assertTrue(report.isNotEmpty())
+    }
 }
 
 // Extension property for URI conversion

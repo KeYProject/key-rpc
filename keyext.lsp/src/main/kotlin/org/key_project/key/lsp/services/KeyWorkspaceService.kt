@@ -5,6 +5,7 @@ import org.key_project.key.lsp.KeyLanguageServer
 import org.eclipse.lsp4j.*
 import org.eclipse.lsp4j.jsonrpc.messages.Either
 import org.eclipse.lsp4j.services.WorkspaceService
+import org.key_project.key.lsp.LOGGER
 import org.key_project.key.lsp.symbols.KeyCatchSymbols
 import org.key_project.util.java.IOUtil
 import java.nio.file.FileSystems
@@ -12,6 +13,7 @@ import java.nio.file.Path
 import java.util.concurrent.CompletableFuture
 import kotlin.io.path.absolutePathString
 import kotlin.io.path.extension
+import kotlin.io.path.readText
 import kotlin.io.path.walk
 
 val Path.asUri: String
@@ -36,6 +38,14 @@ class KeyWorkspaceService(val server: KeyLanguageServer) : WorkspaceService {
 
     override fun didChangeConfiguration(params: DidChangeConfigurationParams) {}
     override fun didChangeWatchedFiles(params: DidChangeWatchedFilesParams) {}
+
+    override fun textDocumentContent(params: TextDocumentContentParams): CompletableFuture<TextDocumentContentResult>  =
+        CompletableFuture.supplyAsync {
+            TextDocumentContentResult(params.uri.toPath().readText())
+        }.exceptionally {
+            LOGGER.error("Error reading file: {}", params.uri.toPath().toUri(), it )
+            throw it
+        }
 
     override fun diagnostic(params: WorkspaceDiagnosticParams): CompletableFuture<WorkspaceDiagnosticReport> =
         findKeyFiles().thenApplyAsync { it.map { parse(it) } }

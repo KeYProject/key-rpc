@@ -6,16 +6,15 @@ package org.key_project.key.lsp
 
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.main
+import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.int
 import org.eclipse.lsp4j.jsonrpc.Launcher
 import org.eclipse.lsp4j.launch.LSPLauncher
-import org.eclipse.lsp4j.services.LanguageClient
 import org.eclipse.lsp4j.services.LanguageServer
 import org.keyproject.key.api.KeyApiImpl
 import org.keyproject.key.api.StartServer
-import org.keyproject.key.api.remoteclient.ClientApi
 import java.io.InputStream
 import java.io.OutputStream
 import java.io.PrintWriter
@@ -40,10 +39,6 @@ object Main {
 
 val executorService: ExecutorService = ForkJoinPool.commonPool()
 
-interface RemoteApi :
-    ClientApi,
-    LanguageClient
-
 class KeyLspCommand : CliktCommand() {
     private val traceEnabled by option("--trace")
     private val stdioMode by option("--stdio").flag()
@@ -53,9 +48,10 @@ class KeyLspCommand : CliktCommand() {
     override fun run() {
         try {
             when {
-                stdioMode -> launchLanguageServer(System.`in`, System.out)
+                stdioMode -> launchLanguageServer(System.`in`, System.out).get()
                 serverMode != null -> runAsServer(serverMode!!)
                 client != null -> runAsClient(client!!)
+                else ->  launchLanguageServer(System.`in`, System.out).get()
             }
         } catch (e: Exception) {
             LOGGER.error("Error at starting LSP server", e)
@@ -74,7 +70,7 @@ class KeyLspCommand : CliktCommand() {
 
         val client = launcher.remoteProxy
         languageServer.connect(client)
-        keyApiServer.setClientApi(client)
+        //keyApiServer.setClientApi(client)
         return launcher.startListening()
     }
 
@@ -93,8 +89,10 @@ class KeyLspCommand : CliktCommand() {
             .validateMessages(true)
             // .wrapMessages(wrapper)
             .configureGson(StartServer::configureJson)
+            .setClassLoader(javaClass.classLoader)
 
         traceEnabled?.let {
+            LOGGER.info("Tracing enabled: $it")
             if (it == "-") {
                 l.traceMessages(PrintWriter(System.err))
             } else {
@@ -109,7 +107,7 @@ class KeyLspCommand : CliktCommand() {
         val socket = Socket("localhost", port)
         socket.tcpNoDelay = true
         socket.keepAlive = true
-        launchLanguageServer(socket.getInputStream(), socket.getOutputStream())
+        launchLanguageServer(socket.getInputStream(), socket.getOutputStream()).get()
     }
 
     private fun runAsServer(port: Int) {

@@ -13,10 +13,14 @@ import org.eclipse.lsp4j.*
 
 internal val Token.asRange: Range
     get() = Range(asStartPosition, asStopPosition)
+
 internal val Token.asStopPosition: Position
-    get() = Position(line, charPositionInLine + startIndex - stopIndex)
+    get() = Position(line - 1, charPositionInLine + startIndex - stopIndex)
+
+
 internal val Token.asStartPosition: Position
-    get() = Position(line, charPositionInLine)
+    get() = Position(line - 1, charPositionInLine)
+
 internal val ParserRuleContext.asRange: Range
     get() = Range(start.asStartPosition, stop.asStopPosition)
 
@@ -43,7 +47,7 @@ class KeyCatchSymbols : JavaKeYParserBaseVisitor<List<DocumentSymbol>?>() {
     override fun visitSort_decls(ctx: JavaKeYParser.Sort_declsContext) = listOf(
         DocumentSymbol(
             "Sorts", SymbolKind.Namespace, ctx.asRange,
-            Range(),
+            ctx.SORTS().symbol.asRange,
             null,
             acceptAll(ctx.one_sort_decl())
         )
@@ -53,6 +57,25 @@ class KeyCatchSymbols : JavaKeYParserBaseVisitor<List<DocumentSymbol>?>() {
         ctx.sortIds?.simple_ident_dots_with_docs()?.flatMap {
             symbol(it.text, SymbolKind.Class, it.asRange, it.asRange, ctx.doc?.text)
         } ?: listOf()
+
+
+    override fun visitSchema_var_decls(ctx: JavaKeYParser.Schema_var_declsContext) = listOf(
+        DocumentSymbol(
+            "Schema Variables", SymbolKind.Namespace, ctx.asRange,
+            ctx.SCHEMAVARIABLES().symbol.asRange,
+            null,
+            acceptAll(ctx.one_schema_var_decl())
+        )
+    )
+
+    override fun visitOne_schema_var_decl(ctx: JavaKeYParser.One_schema_var_declContext): List<DocumentSymbol> =
+        ctx.simple_ident().map {
+            DocumentSymbol(
+                it.text, SymbolKind.Variable, it.asRange, it.asRange,
+                ctx.schema_modifiers().text
+            )
+        }
+
 
     private fun symbol(
         name: String,
@@ -69,14 +92,19 @@ class KeyCatchSymbols : JavaKeYParserBaseVisitor<List<DocumentSymbol>?>() {
         symbol("Preferences", SymbolKind.String, ctx.KEYSETTINGS().symbol.asRange, ctx.asRange, ctx.text)
 
     override fun visitFunc_decls(ctx: JavaKeYParser.Func_declsContext): List<DocumentSymbol> = symbol(
-            "Functions", SymbolKind.Function,
-            ctx.start.asRange, Range(), null,
-            acceptAll(ctx.func_decl())
-        )
+        "Functions", SymbolKind.Namespace,
+        ctx.asRange,
+        ctx.start.asRange,
+        null,
+        acceptAll(ctx.func_decl())
+    )
 
     override fun visitFunc_decl(ctx: JavaKeYParser.Func_declContext): List<DocumentSymbol> {
         declaredFunctions.add(FunctionSignature.from(ctx))
-        return symbol(ctx.func_name.name.text, SymbolKind.Function, ctx.asRange, ctx.func_name.asRange, ctx.text)
+        return symbol(
+            ctx.func_name.name.text, SymbolKind.Function, ctx.asRange, ctx.func_name.asRange,
+            "(${ctx.argSorts.sortId().joinToString(", ") { it.text }}) -> ${ctx.sortId().text}"
+        )
     }
 
     override fun visitRulesOrAxioms(ctx: JavaKeYParser.RulesOrAxiomsContext) = symbol(
@@ -86,7 +114,56 @@ class KeyCatchSymbols : JavaKeYParserBaseVisitor<List<DocumentSymbol>?>() {
     )
 
     override fun visitTaclet(ctx: JavaKeYParser.TacletContext) =
-        symbol("Taclet: ${ctx.name}", SymbolKind.Object, ctx.start.asRange, ctx.asRange, ctx.doc?.text)
+        symbol("${ctx.name.text}", SymbolKind.Class, ctx.start.asRange, ctx.asRange, ctx.doc?.text)
+
+
+    override fun visitDatatype_decls(ctx: JavaKeYParser.Datatype_declsContext) = symbol(
+        "Datatypes", SymbolKind.Namespace,
+        ctx.asRange,
+        ctx.start.asRange,
+        null,
+        acceptAll(ctx.datatype_decl())
+    )
+
+    override fun visitDatatype_decl(ctx: JavaKeYParser.Datatype_declContext) = symbol(
+        ctx.name.text, SymbolKind.Struct, ctx.asRange, ctx.name.asRange,
+        ctx.DOC_COMMENT()?.text?.substringBefore('\n') ?: "${ctx.datatype_constructor().size} constructors",
+        acceptAll(ctx.datatype_constructor())
+    )
+
+    override fun visitDatatype_constructor(ctx: JavaKeYParser.Datatype_constructorContext): List<DocumentSymbol> =
+        symbol(
+            ctx.name.text, SymbolKind.Function, ctx.asRange, ctx.name.asRange,
+            "(${ctx.argSort.zip(ctx.argName).joinToString(", ") { (s, n) -> "${n.text}: ${s.text}" }})"
+        )
+
+    override fun visitOneProgramSource(ctx: JavaKeYParser.OneProgramSourceContext?): List<DocumentSymbol>? {
+        return super.visitOneProgramSource(ctx)
+    }
+
+    override fun visitClassPaths(ctx: JavaKeYParser.ClassPathsContext) =
+        symbol("Classpath", SymbolKind.String, ctx.asRange, ctx.asRange, ctx.text)
+
+    override fun visitBootClassPath(ctx: JavaKeYParser.BootClassPathContext) =
+        symbol("Boot Classpath", SymbolKind.String, ctx.asRange, ctx.asRange, ctx.text)
+
+    override fun visitProgramSource(ctx: JavaKeYParser.ProgramSourceContext) =
+        symbol("Program Source", SymbolKind.String, ctx.asRange, ctx.asRange, ctx.text)
+
+
+    override fun visitProblem(ctx: JavaKeYParser.ProblemContext) =
+        symbol("Problem", SymbolKind.String, ctx.asRange, ctx.asRange, ctx.text)
+
+
+    override fun visitProfile(ctx: JavaKeYParser.ProfileContext) =
+        symbol("Profile", SymbolKind.String, ctx.asRange, ctx.asRange, ctx.text)
+
+    override fun visitProofScriptEntry(ctx: JavaKeYParser.ProofScriptEntryContext) =
+        symbol("Proof Script", SymbolKind.String, ctx.asRange, ctx.asRange, ctx.text)
+
+
+    override fun visitProof(ctx: JavaKeYParser.ProofContext) =
+        symbol("Proof", SymbolKind.String, ctx.PROOF().symbol.asRange, ctx.asRange, ctx.text)
 }
 
 data class FunctionSignature(

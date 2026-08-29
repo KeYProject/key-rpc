@@ -5,6 +5,10 @@ plugins {
     kotlin("kapt")
 }
 
+application {
+    mainClass = "org.key_project.key.lsp.Main"
+}
+
 dependencies {
     api(project(":keyext.api"))
     api(libs.lsp4j.jsonrpc)
@@ -19,6 +23,9 @@ dependencies {
     annotationProcessor(libs.therapi.runtime.javadoc.scribe)
     api(libs.therapi.runtime.javadoc)
 
+    implementation("io.github.wadoon:kotlin-prettyprinting:1.1.0")
+
+    testImplementation(libs.assertj.core)
     testImplementation("org.mockito:mockito-core:5.23.0")
     testImplementation(kotlin("test"))
 }
