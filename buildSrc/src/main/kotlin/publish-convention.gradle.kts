@@ -60,11 +60,19 @@ mavenPublishing {
             }
         }
         developers {
+            developer {
+                id = "weigl"
+                email = "weigl@kit.edu"
+                name = "Alexander Weigl"
+                organization = "Karlsruhe Institute of Technology"
+                organizationUrl = "https://kikit.kit.edu"
+                roles = listOf("developer", "maintainer")
+            }
         }
         scm {
-            connection = "scm:git:git://example.com/my-library.git"
-            developerConnection = "scm:git:ssh://example.com/my-library.git"
-            url = "http://example.com/my-library/"
+            connection = "scm:git:git://github.com/keyproject/key-rpc.git"
+            developerConnection = "scm:git:ssh://github.com/keyproject/key-rpc.git"
+            url = "http://keyproject.github.io/key-rpc"
         }
     }
 }
@@ -73,7 +81,7 @@ fun envOrPropertyValue(key: String): String =
     if (key in System.getenv()) {
         System.getenv(key)
     } else {
-        project.properties[key]?.toString() ?: ""
+        project.findProperty(key)?.toString() ?: ""
     }
 
 val emptyJavadocJar = tasks.findByName("plainJavadocJar")!!
