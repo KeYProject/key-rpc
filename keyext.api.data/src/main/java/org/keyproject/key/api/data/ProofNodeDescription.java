@@ -3,23 +3,18 @@
  * SPDX-License-Identifier: GPL-2.0-only */
 package org.keyproject.key.api.data;
 
-import java.io.Serializable;
-
 import de.uka.ilkd.key.proof.Node;
 
-public class ProofNodeDescription implements Serializable {
-    /**
-     * Collects the information from the tree to which branch the current node belongs:
-     * <ul>
-     * <li>Invariant Initially Valid</li>
-     * <li>Body Preserves Invariant</li>
-     * <li>Use Case</li>
-     * <li>...</li>
-     * </ul>
-     *
-     * @param node the current node
-     * @return a String containing the path information to display
-     */
+public class ProofNodeDescription {
+    /// Collects the information from the tree to which branch the current node belongs:
+    ///
+    ///   - Invariant Initially Valid
+    ///   - Body Preserves Invariant
+    ///   - Use Case
+    ///   - ...
+    ///
+    /// @param node the current node
+    /// @return a String containing the path information to display
     public static String collectPathInformation(Node node) {
         while (node != null) {
             if (node.getNodeInfo() != null && node.getNodeInfo().getBranchLabel() != null) {

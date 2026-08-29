@@ -3,7 +3,6 @@ plugins {
 }
 
 dependencies {
-    api(project(":keyext.api.data"))
     api(libs.key.core)
     api(libs.key.ui) {
         // saves 50% -> ca. 30 MB.
@@ -18,10 +17,7 @@ dependencies {
     }
 
     api(libs.lsp4j.jsonrpc)
-    implementation(libs.lsp4j.websocket.jakarta)
-    implementation(libs.jetty.websocket.javax.server)
-    implementation(libs.picocli)
-    implementation(libs.guava)
+
     annotationProcessor(libs.therapi.runtime.javadoc.scribe)
     api(libs.therapi.runtime.javadoc)
 

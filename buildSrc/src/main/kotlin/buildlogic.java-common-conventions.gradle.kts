@@ -137,7 +137,7 @@ dokka {
 }
 
 // To generate documentation in HTML
-val dokkaHtmlJar by tasks.registering(Jar::class) {
+val dokkaHtmlJar = tasks.register<Jar>("dokkaHtmlJar") {
     description = "A HTML Documentation JAR containing Dokka HTML"
     from(tasks.dokkaGeneratePublicationHtml.flatMap { it.outputDirectory })
     archiveClassifier.set("html-doc")

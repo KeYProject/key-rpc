@@ -1,7 +1,7 @@
 /* This file is part of KeY - https://key-project.org
  * KeY is licensed under the GNU General Public License Version 2
  * SPDX-License-Identifier: GPL-2.0-only */
-package org.keyproject.key.api.data;
+package org.keyproject.key.api;
 
 import java.io.File;
 import java.lang.reflect.InvocationTargetException;
@@ -16,7 +16,7 @@ import de.uka.ilkd.key.scripts.RuleCommand;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import org.jspecify.annotations.Nullable;
-import org.keyproject.key.api.KeyApiImpl;
+import org.keyproject.key.api.data.*;
 import org.keyproject.key.api.data.KeyIdentifications.EnvironmentId;
 import org.keyproject.key.api.data.KeyIdentifications.ProofId;
 import org.keyproject.key.api.remoteapi.ServerManagement;

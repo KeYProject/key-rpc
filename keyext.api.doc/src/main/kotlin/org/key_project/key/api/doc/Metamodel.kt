@@ -1,7 +1,7 @@
 package org.key_project.key.api.doc
 
 import kotlinx.serialization.Serializable
-import org.keyproject.key.api.data.DataExamples
+import org.keyproject.key.api.DataExamples
 import java.util.*
 
 /** Metamodel of the API. This class contains classes which represents the functionality and
