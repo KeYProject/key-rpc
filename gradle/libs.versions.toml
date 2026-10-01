@@ -6,11 +6,11 @@ key = "3.0.0"
 lsp4j = "1.0.0"
 jetty-websocket = "10.0.26"
 picocli = "4.7.7"
-guava = "33.6.0-jre"
+guava = "33.7.1-jre"
 therapi = "0.15.0"
-kotlin-gradle-plugin = "2.4.10"
+kotlin-gradle-plugin = "2.4.20"
 dokka = "2.2.0"
-spotless = "8.7.0"
+spotless = "8.10.3"
 
 [libraries]
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin-gradle-plugin" }
