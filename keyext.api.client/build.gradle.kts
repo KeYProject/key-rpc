@@ -13,13 +13,13 @@ tasks.named<JavaCompile>("compileJava") {
 
 dependencies {
     implementation("com.google.code.gson:gson:2.14.0")
-    implementation("org.jspecify:jspecify:1.0.0")
-    compileOnly("org.projectlombok:lombok:1.18.46")
-    annotationProcessor("org.projectlombok:lombok:1.18.46")
+    implementation("org.jspecify:jspecify:1.0.1")
+    compileOnly("org.projectlombok:lombok:1.18.48")
+    annotationProcessor("org.projectlombok:lombok:1.18.48")
 
-    testCompileOnly("org.projectlombok:lombok:1.18.46")
-    testAnnotationProcessor("org.projectlombok:lombok:1.18.46")
-    testImplementation("org.junit.jupiter:junit-jupiter:6.1.2")
+    testCompileOnly("org.projectlombok:lombok:1.18.48")
+    testAnnotationProcessor("org.projectlombok:lombok:1.18.48")
+    testImplementation("org.junit.jupiter:junit-jupiter:6.1.3")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
